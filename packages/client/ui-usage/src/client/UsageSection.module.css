@@ -1,0 +1,381 @@
+/*
+ * Usage settings section. Theme colors resolve through `--dsw-alias-*` tokens;
+ * the three chart series colors are fixed categorical accents carried on the
+ * per-category `--cat-color` custom property. Bars grow in with a staggered
+ * scaleY cascade, cards fade up, and the hover tooltip fades in above its day.
+ */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  max-width: 760px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+}
+
+.title {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.intro {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.summary {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+
+.range {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
+  margin-top: 16px;
+  padding: 3px;
+  background: var(--dsw-alias-bg-layer-2);
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 999px;
+}
+
+.rangeButton {
+  border: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  padding: 5px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.rangeButton:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+.rangeButtonActive,
+.rangeButtonActive:hover {
+  background: var(--dsw-alias-bg-overlay);
+  color: var(--dsw-alias-label-primary);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  background: var(--dsw-alias-bg-layer-1);
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 14px;
+  padding: 16px 18px;
+  animation: fadeUp 0.5s ease backwards;
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--cat-color);
+}
+
+.cardLabel {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cardValue {
+  margin-top: 10px;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.cardSub {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.chart {
+  background: var(--dsw-alias-bg-layer-1);
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+
+.chartTitle {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.chartHint {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.chartLoading,
+.chartEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  font-size: 13px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.plot {
+  display: flex;
+  gap: 10px;
+}
+
+.yAxis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 200px;
+  width: 44px;
+  flex: none;
+  text-align: right;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary);
+  user-select: none;
+}
+
+.grid {
+  position: relative;
+  flex: 1;
+  height: 200px;
+}
+
+.gridline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--dsw-alias-border-l1);
+  opacity: 0.5;
+}
+
+.bars {
+  position: relative;
+  height: 200px;
+  display: flex;
+  gap: 3px;
+}
+
+.bar {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 200px;
+  cursor: pointer;
+}
+
+.stack {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column-reverse;
+  border-radius: 4px 4px 2px 2px;
+  overflow: hidden;
+  transform-origin: bottom;
+  animation: growUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  transition: filter 0.15s ease;
+}
+
+.bar:hover .stack {
+  filter: brightness(0.92);
+}
+
+.seg {
+  display: block;
+  width: 100%;
+  background: var(--cat-color);
+}
+
+.barEmpty {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--dsw-alias-border-l1);
+}
+
+.xAxis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.legend {
+  display: flex;
+  gap: 18px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.legendKey {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tip {
+  position: absolute;
+  z-index: 50;
+  padding: 10px 12px;
+  white-space: nowrap;
+  font-size: 12px;
+  background: var(--dsw-alias-bg-overlay);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 16%);
+  pointer-events: none;
+  animation: tipIn 0.16s ease-out;
+}
+
+.tipDate {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.tipRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 3px;
+}
+
+.tipKey {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.tipDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cat-color);
+}
+
+.tipValue {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.tipTotal {
+  border-top: 1px solid var(--dsw-alias-border-l1);
+  margin-top: 6px;
+  padding-top: 6px;
+}
+
+.tipSearches {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.retryButton {
+  align-self: flex-start;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  padding: 6px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.retryButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* The three chart series colors (fixed categorical accents). */
+.catInput {
+  --cat-color: #5b8ff9;
+}
+
+.catCacheRead {
+  --cat-color: #34c99b;
+}
+
+.catOutput {
+  --cat-color: #ff9f43;
+}
+
+@keyframes growUp {
+  from {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes tipIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}

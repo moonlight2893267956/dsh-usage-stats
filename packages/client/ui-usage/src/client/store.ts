@@ -1,0 +1,85 @@
+/**
+ * Usage settings page store: one snapshot holding the trailing per-day
+ * token-usage window, loaded from the usageStats Remote. The Host stays the
+ * single fact source — every load writes the window through the wire and the
+ * page re-renders from the next snapshot.
+ * @module @deepseek-ai/dsh-client-ui-usage/client/store
+ */
+
+import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+import type { UsageStatsDay, UsageStatsRequest, UsageStatsValue } from '@deepseek-ai/dsh-usage-stats/types'
+
+/**
+ * The one Remote call this store needs. The generated face wraps the value in
+ * {@link RemoteResult}: a carrier failure arrives as the `ok: false` branch
+ * rather than a rejection, so this store reads one envelope.
+ */
+export interface UsageStatsRemote {
+  stats: (request: UsageStatsRequest) => Promise<RemoteResult<UsageStatsValue>>
+}
+
+/** Page snapshot. */
+export interface UsageStatsState {
+  status: 'idle' | 'loading' | 'ready' | 'error'
+  /** Whole-load failure text. */
+  error: string | null
+  /** The selected window length in days. */
+  days: number
+  /** The trailing window, oldest first. */
+  buckets: readonly UsageStatsDay[]
+}
+
+/** The usage settings page controller (one per settings surface). */
+export class UsageStatsStore {
+  /** The snapshot the section renders from (uSES-safe store). */
+  readonly store: SnapshotStore<UsageStatsState> = createSnapshotStore<UsageStatsState>({
+    status: 'idle', error: null, days: 30, buckets: [],
+  })
+
+  /** Latest load wins; an older response never overwrites a newer one. */
+  private generation = 0
+
+  /**
+   * @param remote - the usageStats Remote namespace.
+   */
+  constructor(private readonly remote: UsageStatsRemote) {}
+
+  /**
+   * Load the current window. A failure keeps the last good buckets and
+   * surfaces the error.
+   * @returns nothing; the snapshot carries the outcome.
+   */
+  async load(): Promise<void> {
+    const generation = ++this.generation
+    const days = this.store.getSnapshot().days
+    this.store.update((s) => { s.status = 'loading'; s.error = null })
+    try {
+      const carried = await this.remote.stats({ days })
+      if (generation !== this.generation) return
+      if (!carried.ok) throw new Error(carried.error.message)
+      this.store.update((s) => {
+        s.status = 'ready'
+        s.error = null
+        s.buckets = carried.value.buckets
+      })
+    } catch (error) {
+      if (generation !== this.generation) return
+      this.store.update((s) => {
+        s.status = 'error'
+        s.error = error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+
+  /**
+   * Select a new window length and reload it.
+   * @param days - the requested window length.
+   */
+  setDays(days: number): void {
+    if (this.store.getSnapshot().days === days) return
+    this.store.update((s) => { s.days = days })
+    void this.load()
+  }
+}

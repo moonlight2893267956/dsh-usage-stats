@@ -1,0 +1,145 @@
+diff --git a/knip.json b/knip.json
+index 3017292382..e58f85e3e8 100644
+--- a/knip.json
++++ b/knip.json
+@@ -511,6 +511,11 @@
+         "tests/**/*.ts"
+       ]
+     },
++    "packages/session/usage-stats": {
++      "ignoreDependencies": [
++        "zod"
++      ]
++    },
+     "packages/util/home-paths": {
+       "entry": [
+         "tests/**/*.spec.ts"
+diff --git a/packages/api/remotes/package.json b/packages/api/remotes/package.json
+index 0bc596bf71..2627a8f447 100644
+--- a/packages/api/remotes/package.json
++++ b/packages/api/remotes/package.json
+@@ -73,7 +73,8 @@
+     "@deepseek-ai/dsh-session": "workspace:^",
+     "@deepseek-ai/dsh-session-persistence": "workspace:^",
+     "@deepseek-ai/dsh-settings": "workspace:^",
+-    "@deepseek-ai/dsh-typert-registry": "workspace:^"
++    "@deepseek-ai/dsh-typert-registry": "workspace:^",
++    "@deepseek-ai/dsh-usage-stats": "workspace:^"
+   },
+   "devDependencies": {
+     "@deepseek-ai/dsh-agent": "workspace:^",
+@@ -91,6 +92,7 @@
+     "@deepseek-ai/dsh-session-persistence": "workspace:^",
+     "@deepseek-ai/dsh-settings": "workspace:^",
+     "@deepseek-ai/dsh-typert-registry": "workspace:^",
++    "@deepseek-ai/dsh-usage-stats": "workspace:^",
+     "@deepseek-ai/cordis": "workspace:^"
+   }
+ }
+diff --git a/packages/api/remotes/src/client/index.ts b/packages/api/remotes/src/client/index.ts
+index 210ec0bf80..930456620d 100644
+--- a/packages/api/remotes/src/client/index.ts
++++ b/packages/api/remotes/src/client/index.ts
+@@ -6,6 +6,7 @@ import goalsRemote from '@deepseek-ai/dsh-goal/remote'
+ import dynamicRemote from '@deepseek-ai/dsh-cordis-host-runner/remote'
+ import pluginInventoryRemote from '@deepseek-ai/dsh-host-plugin-inventory/remote'
+ import messageFeedbackRemote from '@deepseek-ai/dsh-message-feedback/remote'
++import usageStatsRemote from '@deepseek-ai/dsh-usage-stats/remote'
+ import type { TypertClientRemote } from '@deepseek-ai/dsh-typert-protocol'
+ 
+ export type { TypertClientRemote as ClientRemote } from '@deepseek-ai/dsh-typert-protocol'
+@@ -14,6 +15,7 @@ export type {} from '@deepseek-ai/dsh-commands/remote'
+ export type {} from '@deepseek-ai/dsh-goal/remote'
+ export type {} from '@deepseek-ai/dsh-host-plugin-inventory/remote'
+ export type {} from '@deepseek-ai/dsh-message-feedback/remote'
++export type {} from '@deepseek-ai/dsh-usage-stats/remote'
+ // The forwarded-event allowlist's selection seat: without it in the consumer's
+ // compilation face `TypertRemoteEvent` is `never` and every `$on` call fails.
+ export type { ApiRemoteForwardedEvent } from '../types.ts'
+@@ -26,6 +28,7 @@ export type {} from '@deepseek-ai/dsh-credentials/types'
+ export type {} from '@deepseek-ai/dsh-llm/types'
+ export type {} from '@deepseek-ai/dsh-agent-presets/types'
+ export type {} from '@deepseek-ai/dsh-settings/types'
++export type {} from '@deepseek-ai/dsh-usage-stats/types'
+ 
+ /**
+  * The carrier's Client-facing types, re-exported so a business package names one
+@@ -107,6 +110,7 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
+   try {
+     for (const contribution of [
+       commandsRemote, goalsRemote, dynamicRemote, pluginInventoryRemote, messageFeedbackRemote,
++      usageStatsRemote,
+     ]) {
+       disposers.push(await ctx.remote.$mount(contribution))
+     }
+diff --git a/packages/bundle/web-app/cordis.patch.yml b/packages/bundle/web-app/cordis.patch.yml
+index b06e63b54f..1822a3686f 100644
+--- a/packages/bundle/web-app/cordis.patch.yml
++++ b/packages/bundle/web-app/cordis.patch.yml
+@@ -84,6 +84,11 @@
+     - id: session-stats
+       name: '@deepseek-ai/dsh-session-stats'
+ 
++    # Cross-session per-day token usage for the Usage settings page (the
++    # usageStats Remote namespace).
++    - id: usage-stats
++      name: '@deepseek-ai/dsh-usage-stats'
++
+     # Resolve bind host, SSH launch, and display once at boot, then mount the
+     # matching dual-face directory picker. Mount -native or -browse directly in
+     # an overlay to pin the interaction.
+@@ -246,6 +251,10 @@
+     - id: ui-message-feedback
+       name: '@deepseek-ai/dsh-client-ui-message-feedback'
+ 
++    # Usage settings page: per-day token chart over the usageStats Remote.
++    - id: ui-usage
++      name: '@deepseek-ai/dsh-client-ui-usage'
++
+     # Model selection: the /model popupSelect + composer seat over session.models.
+     - id: ui-model-selection
+       name: '@deepseek-ai/dsh-client-ui-model-selection'
+diff --git a/packages/bundle/web-app/package.json b/packages/bundle/web-app/package.json
+index ad9ec48fae..33a661cf4c 100644
+--- a/packages/bundle/web-app/package.json
++++ b/packages/bundle/web-app/package.json
+@@ -68,6 +68,7 @@
+     "@deepseek-ai/dsh-client-ui-permission-presets": "workspace:^",
+     "@deepseek-ai/dsh-client-ui-plan": "workspace:^",
+     "@deepseek-ai/dsh-client-ui-settings-plugins": "workspace:^",
++    "@deepseek-ai/dsh-client-ui-usage": "workspace:^",
+     "@deepseek-ai/dsh-client-ui-user-questions": "workspace:^",
+     "@deepseek-ai/dsh-client-ui-settings": "workspace:^",
+     "@deepseek-ai/dsh-client-ui-settings-general": "workspace:^",
+@@ -97,6 +98,7 @@
+     "@deepseek-ai/dsh-session-projection-cache": "workspace:^",
+     "@deepseek-ai/dsh-session-log-export": "workspace:^",
+     "@deepseek-ai/dsh-session-stats": "workspace:^",
++    "@deepseek-ai/dsh-usage-stats": "workspace:^",
+     "@deepseek-ai/dsh-storage": "workspace:^",
+     "@deepseek-ai/dsh-storage-domain": "workspace:^",
+     "@deepseek-ai/dsh-storage-json": "workspace:^",
+diff --git a/tsconfig.client.json b/tsconfig.client.json
+index e599f76f1b..5f29729203 100644
+--- a/tsconfig.client.json
++++ b/tsconfig.client.json
+@@ -91,6 +91,7 @@
+     { "path": "./packages/client/ui-settings-general" },
+     { "path": "./packages/client/ui-settings-models" },
+     { "path": "./packages/client/ui-settings-plugin-inventory" },
++    { "path": "./packages/client/ui-usage" },
+     { "path": "./packages/client/locale" },
+     { "path": "./packages/client/web" },
+     { "path": "./apps/web" }
+diff --git a/tsconfig.host.json b/tsconfig.host.json
+index 459036247a..bca8721024 100644
+--- a/tsconfig.host.json
++++ b/tsconfig.host.json
+@@ -158,6 +158,7 @@
+     { "path": "./packages/session/session-title-llm" },
+     { "path": "./packages/session/session-title-first-prompt-llm" },
+     { "path": "./packages/session/session-title-all-prompts-llm" },
++    { "path": "./packages/session/usage-stats" },
+     { "path": "./packages/session/session-telemetry" },
+     { "path": "./packages/identity/anonymous-user-id" },
+     { "path": "./packages/session/session-telemetry-otel" },
