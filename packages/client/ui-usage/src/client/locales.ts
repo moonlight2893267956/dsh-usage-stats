@@ -21,6 +21,8 @@ export const zh = {
   'state.error': '用量加载失败',
   'state.retry': '重试',
   'state.empty': '这段时间还没有 token 用量',
+  'model.title': '模型',
+  'model.all': '全部模型',
 } satisfies Record<string, string>
 
 /** The usage namespace key union. */
@@ -54,4 +56,6 @@ export const en = {
   'state.error': 'Could not load usage',
   'state.retry': 'Retry',
   'state.empty': 'No token usage in this window yet',
+  'model.title': 'Model',
+  'model.all': 'All models',
 } satisfies Record<UsageKey, string>

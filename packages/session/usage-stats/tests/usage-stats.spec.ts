@@ -3,7 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { CallId, createAssistantMessage, type TokenUsage } from '@deepseek-ai/dsh-llm'
 import { SESSION_FORMAT_VERSION, SessionId, type SessionEvent, type SessionHeader } from '@deepseek-ai/dsh-session'
 import UsageStatsService from '../src/index.ts'
-import type { UsageStatsValue } from '../src/index.ts'
+import type { UsageStatsDay, UsageStatsValue } from '../src/index.ts'
 
 const MESSAGE = createAssistantMessage({
   content: [{ type: 'text', text: 'answer' }],
@@ -36,8 +36,12 @@ function dayKey(offsetDays: number): string {
 }
 
 let seq = 0
-function usageEvent(time: number, usage: TokenUsage): SessionEvent {
-  return { type: 'assistant/message', seq: seq++, time, data: { turn: 1, step: 1, message: MESSAGE, usage } }
+function usageEvent(time: number, usage: TokenUsage, model = 'test'): SessionEvent {
+  const message = model === 'test' ? MESSAGE : createAssistantMessage({
+    content: [{ type: 'text', text: 'answer' }],
+    source: { provider: 'test', model },
+  })
+  return { type: 'assistant/message', seq: seq++, time, data: { turn: 1, step: 1, message, usage } }
 }
 function bareMessageEvent(time: number): SessionEvent {
   return { type: 'assistant/message', seq: seq++, time, data: { turn: 1, step: 1, message: MESSAGE } }
@@ -69,9 +73,11 @@ async function mount(sessions: StubSession[]): Promise<Context> {
   return ctx
 }
 
-function bucketFor(value: UsageStatsValue, offsetDays: number): { input: number; cacheRead: number; output: number; searches: number } {
+function bucketFor(value: UsageStatsValue, offsetDays: number): UsageStatsDay {
   const bucket = value.buckets.find(candidate => candidate.date === dayKey(offsetDays))
-  if (bucket === undefined) return { input: 0, cacheRead: 0, output: 0, searches: 0 }
+  if (bucket === undefined) {
+    return { date: dayKey(offsetDays), input: 0, cacheRead: 0, output: 0, searches: 0, models: {} }
+  }
   return bucket
 }
 
@@ -172,6 +178,62 @@ describe('UsageStatsService', () => {
       const empty = await ctx.usageStats.stats({ days: 7 })
       expect(empty.buckets).toHaveLength(7)
       expect(bucketFor(empty, 0)).toMatchObject({ input: 0, cacheRead: 0, output: 0, searches: 0 })
+      expect(empty.models).toEqual([])
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('splits per-day totals by model and reports the window model list', async () => {
+    const ctx = await mount([
+      {
+        meta: header('a'),
+        events: [
+          usageEvent(dayTime(0), { inputTokens: 100, outputTokens: 20 }, 'deepseek-reasoner'),
+          usageEvent(dayTime(0), { inputTokens: 200, outputTokens: 40 }, 'deepseek-chat'),
+        ],
+      },
+      {
+        meta: header('b'),
+        events: [usageEvent(dayTime(1), { inputTokens: 7, outputTokens: 3 }, 'deepseek-chat')],
+      },
+    ])
+    try {
+      const value = await ctx.usageStats.stats({ days: 30 })
+      expect(bucketFor(value, 0).models).toEqual({
+        'deepseek-reasoner': { input: 100, cacheRead: 0, output: 20 },
+        'deepseek-chat': { input: 200, cacheRead: 0, output: 40 },
+      })
+      expect(bucketFor(value, 1).models).toEqual({
+        'deepseek-chat': { input: 7, cacheRead: 0, output: 3 },
+      })
+      expect([...value.models].sort()).toEqual(['deepseek-chat', 'deepseek-reasoner'])
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('filters the aggregate to the requested models only', async () => {
+    const ctx = await mount([
+      {
+        meta: header('a'),
+        events: [
+          usageEvent(dayTime(0), { inputTokens: 100, outputTokens: 20 }, 'deepseek-reasoner'),
+          usageEvent(dayTime(0), { inputTokens: 200, outputTokens: 40 }, 'deepseek-chat'),
+        ],
+      },
+    ])
+    try {
+      const value = await ctx.usageStats.stats({ days: 30, models: ['deepseek-reasoner'] })
+      const bucket = bucketFor(value, 0)
+      expect(bucket).toMatchObject({ input: 100, output: 20 })
+      expect(bucket.models).toEqual({
+        'deepseek-reasoner': { input: 100, cacheRead: 0, output: 20 },
+      })
+      expect(bucket.models['deepseek-chat']).toBeUndefined()
+      // The window model list always reports every model, not just the filtered ones,
+      // so the dropdown never shrinks to only the selected models.
+      expect([...value.models].sort()).toEqual(['deepseek-chat', 'deepseek-reasoner'])
     } finally {
       await ctx.fiber.dispose()
     }

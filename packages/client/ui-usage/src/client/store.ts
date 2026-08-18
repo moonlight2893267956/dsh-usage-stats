@@ -29,13 +29,17 @@ export interface UsageStatsState {
   days: number
   /** The trailing window, oldest first. */
   buckets: readonly UsageStatsDay[]
+  /** Models present in the current window, for the filter control. */
+  availableModels: readonly string[]
+  /** Models selected for filtering; empty means "all models". */
+  selectedModels: readonly string[]
 }
 
 /** The usage settings page controller (one per settings surface). */
 export class UsageStatsStore {
   /** The snapshot the section renders from (uSES-safe store). */
   readonly store: SnapshotStore<UsageStatsState> = createSnapshotStore<UsageStatsState>({
-    status: 'idle', error: null, days: 30, buckets: [],
+    status: 'idle', error: null, days: 30, buckets: [], availableModels: [], selectedModels: [],
   })
 
   /** Latest load wins; an older response never overwrites a newer one. */
@@ -53,16 +57,17 @@ export class UsageStatsStore {
    */
   async load(): Promise<void> {
     const generation = ++this.generation
-    const days = this.store.getSnapshot().days
+    const { days, selectedModels } = this.store.getSnapshot()
     this.store.update((s) => { s.status = 'loading'; s.error = null })
     try {
-      const carried = await this.remote.stats({ days })
+      const carried = await this.remote.stats({ days, models: selectedModels })
       if (generation !== this.generation) return
       if (!carried.ok) throw new Error(carried.error.message)
       this.store.update((s) => {
         s.status = 'ready'
         s.error = null
         s.buckets = carried.value.buckets
+        s.availableModels = carried.value.models
       })
     } catch (error) {
       if (generation !== this.generation) return
@@ -80,6 +85,18 @@ export class UsageStatsStore {
   setDays(days: number): void {
     if (this.store.getSnapshot().days === days) return
     this.store.update((s) => { s.days = days })
+    void this.load()
+  }
+
+  /**
+   * Select which models to filter by and reload. An empty selection means all
+   * models.
+   * @param models - the models to include, or `[]` for every model.
+   */
+  setModels(models: readonly string[]): void {
+    const current = this.store.getSnapshot().selectedModels
+    if (current.length === models.length && current.every((m, i) => m === models[i])) return
+    this.store.update((s) => { s.selectedModels = models })
     void this.load()
   }
 }

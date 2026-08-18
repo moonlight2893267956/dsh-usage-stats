@@ -13,6 +13,7 @@ import type { UsageStatsDay } from '@deepseek-ai/dsh-usage-stats/types'
 import type { UsageStatsState, UsageStatsStore } from './store.ts'
 import type { en } from './locales.ts'
 import styles from './UsageSection.module.css'
+import { ModelFilter } from './ModelFilter.tsx'
 
 /** Injected dependencies of {@link UsageSection} (slot `inject`). */
 export interface UsageSectionInjected {
@@ -110,6 +111,8 @@ function Loaded({ injected }: { injected: UsageSectionInjected }): ReactNode {
 
   const buckets = state.buckets
   const days = state.days
+  const availableModels = state.availableModels
+  const selectedModels = state.selectedModels
   const loading = state.status !== 'ready'
 
   const totals: Record<CategoryKey, number> = { input: 0, cacheRead: 0, output: 0 }
@@ -143,18 +146,29 @@ function Loaded({ injected }: { injected: UsageSectionInjected }): ReactNode {
             searches: String(searches),
           })}
         </p>
-        <div className={styles['range']} role="group" aria-label={t('chart.title')}>
-          {RANGES.map((range) => (
-            <button
-              key={range}
-              type="button"
-              className={`${styles['rangeButton']} ${range === days ? styles['rangeButtonActive'] : ''}`}
-              aria-pressed={range === days}
-              onClick={() => controller.setDays(range)}
-            >
-              {t(`range.${range}` as keyof typeof en)}
-            </button>
-          ))}
+        <div className={styles['controls']}>
+          {availableModels.length > 0 && (
+            <ModelFilter
+              label={t('model.title' as keyof typeof en)}
+              allLabel={t('model.all' as keyof typeof en)}
+              models={availableModels}
+              selected={selectedModels}
+              onChange={next => controller.setModels(next)}
+            />
+          )}
+          <div className={styles['range']} role="group" aria-label={t('chart.title')}>
+            {RANGES.map(range => (
+              <button
+                key={range}
+                type="button"
+                className={`${styles['rangeButton']} ${range === days ? styles['rangeButtonActive'] : ''}`}
+                aria-pressed={range === days}
+                onClick={() => controller.setDays(range)}
+              >
+                {t(`range.${range}` as keyof typeof en)}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
@@ -186,12 +200,12 @@ function Loaded({ injected }: { injected: UsageSectionInjected }): ReactNode {
               <>
                 <div className={styles['plot']}>
                   <div className={styles['yAxis']}>
-                    {ticks.slice().reverse().map((value) => (
+                    {ticks.slice().reverse().map(value => (
                       <span key={value}>{formatCompact(value)}</span>
                     ))}
                   </div>
                   <div className={styles['grid']}>
-                    {ticks.slice(1).map((value) => (
+                    {ticks.slice(1).map(value => (
                       <div key={value} className={styles['gridline']} style={{ bottom: `${(value / maxDay) * 100}%` }} />
                     ))}
                     <div className={styles['bars']} key={days}>
@@ -219,7 +233,7 @@ function Loaded({ injected }: { injected: UsageSectionInjected }): ReactNode {
                               ? (
                                 <div className={styles['tip']} style={tipStyle} role="tooltip">
                                   <span className={styles['tipDate']}>{dateLabel(bucket.date)}</span>
-                                  {CATEGORIES.map((category) => bucket[category.key] > 0
+                                  {CATEGORIES.map(category => bucket[category.key] > 0
                                     ? (
                                       <span key={category.key} className={styles['tipRow']}>
                                         <span className={styles['tipKey']}>
@@ -247,7 +261,7 @@ function Loaded({ injected }: { injected: UsageSectionInjected }): ReactNode {
                                   className={styles['stack']}
                                   style={{ height: `${fraction * 100}%`, animationDelay: `${index * 14}ms` }}
                                 >
-                                  {CATEGORIES.map((category) => bucket[category.key] > 0
+                                  {CATEGORIES.map(category => bucket[category.key] > 0
                                     ? (
                                       <span
                                         key={category.key}
@@ -270,7 +284,7 @@ function Loaded({ injected }: { injected: UsageSectionInjected }): ReactNode {
                   <span>{last === undefined ? '' : dateLabel(last.date)}</span>
                 </div>
                 <div className={styles['legend']}>
-                  {CATEGORIES.map((category) => (
+                  {CATEGORIES.map(category => (
                     <span key={category.key} className={styles['legendKey']}>
                       <span className={`${styles['dot']} ${category.className}`} />
                       {t(category.labelKey)}

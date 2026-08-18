@@ -19,7 +19,7 @@ import { zh } from '../src/client/locales.ts'
 const t = (key: keyof typeof zh): string => zh[key]
 
 function day(date: string, input: number, cacheRead: number, output: number, searches = 0): UsageStatsDay {
-  return { date, input, cacheRead, output, searches }
+  return { date, input, cacheRead, output, searches, models: {} }
 }
 
 function remoteWith(value: UsageStatsValue): UsageStatsRemote {
@@ -41,6 +41,7 @@ describe('UsageSection', () => {
     const value: UsageStatsValue = {
       days: 30,
       buckets: [day('2026-08-17', 1200, 0, 300, 2), day('2026-08-18', 800, 400, 100, 1)],
+      models: [],
     }
     render(<UsageSection {...injected(remoteWith(value))} />)
     await waitFor(() => expect(screen.getByText('用量')).toBeTruthy())
@@ -62,17 +63,17 @@ describe('UsageSection', () => {
     const remote: UsageStatsRemote = {
       stats: (request) => {
         requests.push(request)
-        return Promise.resolve({ ok: true, value: { days: request.days, buckets: [day('2026-08-18', 5, 0, 1)] } })
+        return Promise.resolve({ ok: true, value: { days: request.days, buckets: [day('2026-08-18', 5, 0, 1)], models: [] } })
       },
     }
     render(<UsageSection {...injected(remote)} />)
     await waitFor(() => expect(screen.getByRole('button', { name: '7天' })).toBeTruthy())
     fireEvent.click(screen.getByRole('button', { name: '7天' }))
-    await waitFor(() => expect(requests).toContainEqual({ days: 7 }))
+    await waitFor(() => expect(requests).toContainEqual({ days: 7, models: [] }))
   })
 
   it('shows the empty state when the window has no usage', async () => {
-    const value: UsageStatsValue = { days: 7, buckets: [day('2026-08-18', 0, 0, 0)] }
+    const value: UsageStatsValue = { days: 7, buckets: [day('2026-08-18', 0, 0, 0)], models: [] }
     render(<UsageSection {...injected(remoteWith(value))} />)
     await waitFor(() => expect(screen.getByText('这段时间还没有 token 用量')).toBeTruthy())
   })
@@ -100,7 +101,7 @@ describe('UsageSection', () => {
         calls += 1
         return Promise.resolve({
           ok: true,
-          value: { days: 30, buckets: [day('2026-08-18', value, 0, 1)] },
+          value: { days: 30, buckets: [day('2026-08-18', value, 0, 1)], models: [] },
         })
       },
     }

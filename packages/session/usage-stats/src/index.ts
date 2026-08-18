@@ -14,7 +14,7 @@ import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 // Type-only: pulls the `sessionPersistence` Context merge into this program.
 import type {} from '@deepseek-ai/dsh-session-persistence'
-import type { UsageStatsDay, UsageStatsRequest, UsageStatsValue } from './types.ts'
+import type { UsageStatsDay, UsageStatsModelTotals, UsageStatsRequest, UsageStatsValue } from './types.ts'
 
 export type * from './types.ts'
 
@@ -31,17 +31,31 @@ declare module '@deepseek-ai/cordis' {
  */
 const MAX_DAYS = 370
 
+/** One model's mutable token accumulator. */
+interface ModelTotals {
+  input: number
+  cacheRead: number
+  output: number
+}
+
+/** A zeroed model accumulator. */
+function emptyModel(): ModelTotals {
+  return { input: 0, cacheRead: 0, output: 0 }
+}
+
 /** One mutable per-day accumulator. */
 interface DayTotals {
   input: number
   cacheRead: number
   output: number
   searches: number
+  /** Per-model token totals; a model absent from the map has seen no tokens that day. */
+  models: Map<string, ModelTotals>
 }
 
 /** A zeroed day bucket. */
 function emptyDay(): DayTotals {
-  return { input: 0, cacheRead: 0, output: 0, searches: 0 }
+  return { input: 0, cacheRead: 0, output: 0, searches: 0, models: new Map() }
 }
 
 /** Local calendar-day key (`YYYY-MM-DD`) for one epoch-millisecond event time. */
@@ -90,7 +104,7 @@ export class UsageStatsService extends TypertRemoteService {
   async stats(request: UsageStatsRequest): Promise<UsageStatsValue> {
     const days = clampDays(request.days)
     await this.fold()
-    return this.snapshot(days)
+    return this.snapshot(days, request.models)
   }
 
   /** Queue one fold behind the previous so concurrent queries share a single scan. */
@@ -124,6 +138,14 @@ export class UsageStatsService extends TypertRemoteService {
       day.input += usage.inputTokens + (usage.cacheWriteTokens ?? 0)
       day.cacheRead += usage.cacheReadTokens ?? 0
       day.output += usage.outputTokens
+      const model = event.data.message.source.model
+      if (model !== undefined) {
+        const totals = day.models.get(model) ?? emptyModel()
+        totals.input += usage.inputTokens + (usage.cacheWriteTokens ?? 0)
+        totals.cacheRead += usage.cacheReadTokens ?? 0
+        totals.output += usage.outputTokens
+        day.models.set(model, totals)
+      }
     } else if (event.type === 'tool/call' && event.data.name === 'web_search') {
       this.day(event.time).searches += 1
     }
@@ -141,7 +163,9 @@ export class UsageStatsService extends TypertRemoteService {
   }
 
   /** Build the trailing-`days` window, oldest first, as frozen lossless JSON. */
-  private snapshot(days: number): UsageStatsValue {
+  private snapshot(days: number, models: readonly string[] | null | undefined): UsageStatsValue {
+    const modelFilter = models !== undefined && models !== null && models.length > 0 ? models : null
+    const seenModels = new Set<string>()
     const buckets: UsageStatsDay[] = []
     const today = new Date()
     for (let i = days - 1; i >= 0; i--) {
@@ -149,9 +173,48 @@ export class UsageStatsService extends TypertRemoteService {
       date.setDate(date.getDate() - i)
       const key = dayKeyOf(date.getTime())
       const day = this.days.get(key) ?? emptyDay()
-      buckets.push(Object.freeze({ date: key, ...day }))
+      const modelsOut: Record<string, UsageStatsModelTotals> = {}
+      let input = 0
+      let cacheRead = 0
+      let output = 0
+      if (modelFilter === null) {
+        input = day.input
+        cacheRead = day.cacheRead
+        output = day.output
+        for (const [model, totals] of day.models) {
+          modelsOut[model] = Object.freeze({ ...totals })
+          seenModels.add(model)
+        }
+      } else {
+        for (const model of modelFilter) {
+          const totals = day.models.get(model)
+          if (totals === undefined) continue
+          modelsOut[model] = Object.freeze({ ...totals })
+          input += totals.input
+          cacheRead += totals.cacheRead
+          output += totals.output
+        }
+      }
+      // Always collect every model in the window for the filter control,
+      // regardless of the active filter — so the dropdown never shrinks to
+      // only the selected models.
+      for (const model of day.models.keys()) {
+        seenModels.add(model)
+      }
+      buckets.push(Object.freeze({
+        date: key,
+        input,
+        cacheRead,
+        output,
+        searches: day.searches,
+        models: Object.freeze(modelsOut),
+      }))
     }
-    return Object.freeze({ days, buckets: Object.freeze(buckets) })
+    return Object.freeze({
+      days,
+      buckets: Object.freeze(buckets),
+      models: Object.freeze([...seenModels].sort()),
+    })
   }
 }
 

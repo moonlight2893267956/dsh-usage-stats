@@ -39,11 +39,18 @@
   color: var(--dsw-alias-label-primary);
 }
 
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
 .range {
   display: inline-flex;
-  align-self: flex-start;
+  flex-shrink: 0;
   gap: 2px;
-  margin-top: 16px;
   padding: 3px;
   background: var(--dsw-alias-bg-layer-2);
   border: 1px solid var(--dsw-alias-border-l1);

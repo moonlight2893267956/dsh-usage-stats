@@ -18,11 +18,11 @@ function carrierFailure(message: string): RemoteResult<UsageStatsValue> {
 }
 
 function day(date: string, input: number, output: number, searches = 0): UsageStatsDay {
-  return { date, input, output, cacheRead: 0, searches }
+  return { date, input, output, cacheRead: 0, searches, models: {} }
 }
 
 function window(days: number, buckets: UsageStatsDay[]): UsageStatsValue {
-  return { days, buckets }
+  return { days, buckets, models: [] }
 }
 
 /** A fake Remote with scripted answers and recorded requests. */
@@ -46,7 +46,7 @@ describe('UsageStatsStore', () => {
     expect(snapshot.status).toBe('ready')
     expect(snapshot.error).toBeNull()
     expect(snapshot.buckets).toEqual([day('2026-08-18', 10, 5)])
-    expect(requests).toEqual([{ days: 30 }])
+    expect(requests).toEqual([{ days: 30, models: [] }])
   })
 
   it('surfaces a carrier failure without losing the last good buckets', async () => {
@@ -75,7 +75,7 @@ describe('UsageStatsStore', () => {
   })
 
   it('reloads with the new window when it changes, and not when it is unchanged', async () => {
-    const { remote, requests } = fakeRemote((request) => Promise.resolve(ok(window(request.days, []))))
+    const { remote, requests } = fakeRemote(request => Promise.resolve(ok(window(request.days, []))))
     const store = new UsageStatsStore(remote)
     store.setDays(30)
     expect(requests).toEqual([])
@@ -84,12 +84,12 @@ describe('UsageStatsStore', () => {
     expect(store.store.getSnapshot().days).toBe(7)
     store.setDays(90)
     await Promise.resolve()
-    expect(requests).toEqual([{ days: 7 }, { days: 90 }])
+    expect(requests).toEqual([{ days: 7, models: [] }, { days: 90, models: [] }])
   })
 
   it('ignores a stale response that resolves after a newer load started', async () => {
     const resolvers: Array<() => void> = []
-    const { remote } = fakeRemote((request) => new Promise<RemoteResult<UsageStatsValue>>((resolve) => {
+    const { remote } = fakeRemote(request => new Promise<RemoteResult<UsageStatsValue>>((resolve) => {
       resolvers.push(() => resolve(ok(window(request.days, [day(`2026-08-0${request.days}`, request.days, 0)]))))
     }))
     const store = new UsageStatsStore(remote)
