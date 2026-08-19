@@ -13,6 +13,8 @@ export interface UsageStatsModelTotals {
   readonly cacheRead: number
   /** Output (completion) tokens. */
   readonly output: number
+  /** Model completion requests made that day. */
+  readonly requests: number
 }
 
 /** One calendar day's usage totals, aggregated across every session on this device. */
@@ -25,6 +27,8 @@ export interface UsageStatsDay {
   readonly cacheRead: number
   /** Output (completion) tokens. */
   readonly output: number
+  /** Model completion requests made that day. */
+  readonly requests: number
   /** `web_search` tool calls made that day. */
   readonly searches: number
   /** Per-model token totals for the day, keyed by model id. */

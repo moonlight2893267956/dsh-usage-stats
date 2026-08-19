@@ -36,11 +36,12 @@ interface ModelTotals {
   input: number
   cacheRead: number
   output: number
+  requests: number
 }
 
 /** A zeroed model accumulator. */
 function emptyModel(): ModelTotals {
-  return { input: 0, cacheRead: 0, output: 0 }
+  return { input: 0, cacheRead: 0, output: 0, requests: 0 }
 }
 
 /** One mutable per-day accumulator. */
@@ -48,6 +49,7 @@ interface DayTotals {
   input: number
   cacheRead: number
   output: number
+  requests: number
   searches: number
   /** Per-model token totals; a model absent from the map has seen no tokens that day. */
   models: Map<string, ModelTotals>
@@ -55,7 +57,7 @@ interface DayTotals {
 
 /** A zeroed day bucket. */
 function emptyDay(): DayTotals {
-  return { input: 0, cacheRead: 0, output: 0, searches: 0, models: new Map() }
+  return { input: 0, cacheRead: 0, output: 0, requests: 0, searches: 0, models: new Map() }
 }
 
 /** Local calendar-day key (`YYYY-MM-DD`) for one epoch-millisecond event time. */
@@ -138,12 +140,15 @@ export class UsageStatsService extends TypertRemoteService {
       day.input += usage.inputTokens + (usage.cacheWriteTokens ?? 0)
       day.cacheRead += usage.cacheReadTokens ?? 0
       day.output += usage.outputTokens
+      // One assistant message with usage is one model completion request.
+      day.requests += 1
       const model = event.data.message.source.model
       if (model !== undefined) {
         const totals = day.models.get(model) ?? emptyModel()
         totals.input += usage.inputTokens + (usage.cacheWriteTokens ?? 0)
         totals.cacheRead += usage.cacheReadTokens ?? 0
         totals.output += usage.outputTokens
+        totals.requests += 1
         day.models.set(model, totals)
       }
     } else if (event.type === 'tool/call' && event.data.name === 'web_search') {
@@ -177,10 +182,12 @@ export class UsageStatsService extends TypertRemoteService {
       let input = 0
       let cacheRead = 0
       let output = 0
+      let requests = 0
       if (modelFilter === null) {
         input = day.input
         cacheRead = day.cacheRead
         output = day.output
+        requests = day.requests
         for (const [model, totals] of day.models) {
           modelsOut[model] = Object.freeze({ ...totals })
           seenModels.add(model)
@@ -193,6 +200,7 @@ export class UsageStatsService extends TypertRemoteService {
           input += totals.input
           cacheRead += totals.cacheRead
           output += totals.output
+          requests += totals.requests
         }
       }
       // Always collect every model in the window for the filter control,
@@ -206,6 +214,7 @@ export class UsageStatsService extends TypertRemoteService {
         input,
         cacheRead,
         output,
+        requests,
         searches: day.searches,
         models: Object.freeze(modelsOut),
       }))

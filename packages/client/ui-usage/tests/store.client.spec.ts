@@ -18,7 +18,7 @@ function carrierFailure(message: string): RemoteResult<UsageStatsValue> {
 }
 
 function day(date: string, input: number, output: number, searches = 0): UsageStatsDay {
-  return { date, input, output, cacheRead: 0, searches, models: {} }
+  return { date, input, output, cacheRead: 0, requests: 0, searches, models: {} }
 }
 
 function window(days: number, buckets: UsageStatsDay[]): UsageStatsValue {

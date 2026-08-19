@@ -8,8 +8,8 @@ Usage settings section: a per-day token-usage dashboard backed by the `usageStat
 
 A `settings.section` entry (`id: 'usage'`, order 30) carrying the Usage page:
 
-- A summary line (total tokens and web searches over the window) and a Today / 7d / 30d / 90d range selector (Today is the default and requests a one-day window).
-- One metric card per token category (input, cache read, output) with its window total.
+- A summary line (total tokens, request count, and web searches over the window) and a Today / 7d / 30d / 90d range selector (Today is the default and requests a one-day window).
+- One metric card per token category (input, cache read, output) plus a request-count card, with their window totals.
 - A stacked bar chart of the per-day split with Y-axis gridlines, an X date axis, and a legend; hovering a day opens a tooltip with that day's exact figures. Edge days anchor the tooltip inward so it never clips the panel.
 
 The page store (`UsageStatsStore`) loads the trailing window from `ctx.remote.usageStats.stats()` on mount and on every range change, keeping the last good buckets on failure; the Host owns the aggregate.

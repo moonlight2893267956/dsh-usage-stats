@@ -76,7 +76,7 @@ async function mount(sessions: StubSession[]): Promise<Context> {
 function bucketFor(value: UsageStatsValue, offsetDays: number): UsageStatsDay {
   const bucket = value.buckets.find(candidate => candidate.date === dayKey(offsetDays))
   if (bucket === undefined) {
-    return { date: dayKey(offsetDays), input: 0, cacheRead: 0, output: 0, searches: 0, models: {} }
+    return { date: dayKey(offsetDays), input: 0, cacheRead: 0, output: 0, requests: 0, searches: 0, models: {} }
   }
   return bucket
 }
@@ -101,8 +101,8 @@ describe('UsageStatsService', () => {
       const value = await ctx.usageStats.stats({ days: 30 })
       expect(value.days).toBe(30)
       expect(value.buckets).toHaveLength(30)
-      expect(bucketFor(value, 0)).toMatchObject({ input: 107, output: 23, searches: 1 })
-      expect(bucketFor(value, 2)).toMatchObject({ input: 10, output: 5, cacheRead: 40, searches: 0 })
+      expect(bucketFor(value, 0)).toMatchObject({ input: 107, output: 23, requests: 2, searches: 1 })
+      expect(bucketFor(value, 2)).toMatchObject({ input: 10, output: 5, cacheRead: 40, requests: 1, searches: 0 })
     } finally {
       await ctx.fiber.dispose()
     }
@@ -132,7 +132,7 @@ describe('UsageStatsService', () => {
     ])
     try {
       const value = await ctx.usageStats.stats({ days: 7 })
-      expect(bucketFor(value, 0)).toMatchObject({ input: 0, cacheRead: 0, output: 0, searches: 0 })
+      expect(bucketFor(value, 0)).toMatchObject({ input: 0, cacheRead: 0, output: 0, requests: 0, searches: 0 })
     } finally {
       await ctx.fiber.dispose()
     }
@@ -146,7 +146,7 @@ describe('UsageStatsService', () => {
       expect(bucketFor(first, 0)).toMatchObject({ input: 10, output: 1 })
       session.events.push(usageEvent(dayTime(0), { inputTokens: 5, outputTokens: 2 }), searchEvent(dayTime(0)))
       const second = await ctx.usageStats.stats({ days: 7 })
-      expect(bucketFor(second, 0)).toMatchObject({ input: 15, output: 3, searches: 1 })
+      expect(bucketFor(second, 0)).toMatchObject({ input: 15, output: 3, requests: 2, searches: 1 })
     } finally {
       await ctx.fiber.dispose()
     }
@@ -201,11 +201,11 @@ describe('UsageStatsService', () => {
     try {
       const value = await ctx.usageStats.stats({ days: 30 })
       expect(bucketFor(value, 0).models).toEqual({
-        'deepseek-reasoner': { input: 100, cacheRead: 0, output: 20 },
-        'deepseek-chat': { input: 200, cacheRead: 0, output: 40 },
+        'deepseek-reasoner': { input: 100, cacheRead: 0, output: 20, requests: 1 },
+        'deepseek-chat': { input: 200, cacheRead: 0, output: 40, requests: 1 },
       })
       expect(bucketFor(value, 1).models).toEqual({
-        'deepseek-chat': { input: 7, cacheRead: 0, output: 3 },
+        'deepseek-chat': { input: 7, cacheRead: 0, output: 3, requests: 1 },
       })
       expect([...value.models].sort()).toEqual(['deepseek-chat', 'deepseek-reasoner'])
     } finally {
@@ -228,7 +228,7 @@ describe('UsageStatsService', () => {
       const bucket = bucketFor(value, 0)
       expect(bucket).toMatchObject({ input: 100, output: 20 })
       expect(bucket.models).toEqual({
-        'deepseek-reasoner': { input: 100, cacheRead: 0, output: 20 },
+        'deepseek-reasoner': { input: 100, cacheRead: 0, output: 20, requests: 1 },
       })
       expect(bucket.models['deepseek-chat']).toBeUndefined()
       // The window model list always reports every model, not just the filtered ones,

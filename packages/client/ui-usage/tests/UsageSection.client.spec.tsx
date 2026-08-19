@@ -18,8 +18,8 @@ import { zh } from '../src/client/locales.ts'
 
 const t = (key: keyof typeof zh): string => zh[key]
 
-function day(date: string, input: number, cacheRead: number, output: number, searches = 0): UsageStatsDay {
-  return { date, input, cacheRead, output, searches, models: {} }
+function day(date: string, input: number, cacheRead: number, output: number, searches = 0, requests = 0): UsageStatsDay {
+  return { date, input, cacheRead, output, searches, requests, models: {} }
 }
 
 function remoteWith(value: UsageStatsValue): UsageStatsRemote {
@@ -40,17 +40,20 @@ describe('UsageSection', () => {
   it('loads on mount and renders the totals, cards, and chart', async () => {
     const value: UsageStatsValue = {
       days: 30,
-      buckets: [day('2026-08-17', 1200, 0, 300, 2), day('2026-08-18', 800, 400, 100, 1)],
+      buckets: [day('2026-08-17', 1200, 0, 300, 2, 5), day('2026-08-18', 800, 400, 100, 1, 7)],
       models: [],
     }
     render(<UsageSection {...injected(remoteWith(value))} />)
     await waitFor(() => expect(screen.getByText('用量')).toBeTruthy())
-    // Summary and per-category cards carry the folded totals (2.8K / 400 / 400).
-    expect(screen.getByText(/2\.8K tokens · 3 次网络搜索/)).toBeTruthy()
-    // Each category appears on its metric card and in the chart legend.
+    // Summary and per-category cards carry the folded totals (2.8K / 400 / 400)
+    // plus the window request count (12).
+    expect(screen.getByText(/2\.8K tokens · 12 次请求 · 3 次网络搜索/)).toBeTruthy()
+    // Each category appears on its metric card and in the chart legend; the
+    // request count adds a metric card of its own.
     expect(screen.getAllByText('输入')).toHaveLength(2)
     expect(screen.getAllByText('缓存命中')).toHaveLength(2)
     expect(screen.getAllByText('输出')).toHaveLength(2)
+    expect(screen.getAllByText('请求')).toHaveLength(2)
     expect(screen.getByText('每日 Tokens')).toBeTruthy()
     // Range selector offers the four windows; today is the active default.
     expect(screen.getByRole('button', { name: '今天' })).toBeTruthy()
@@ -90,13 +93,13 @@ describe('UsageSection', () => {
   it('shows only today when today is the selected window', async () => {
     const value: UsageStatsValue = {
       days: 1,
-      buckets: [day('2026-08-18', 400, 120, 90, 3)],
+      buckets: [day('2026-08-18', 400, 120, 90, 3, 4)],
       models: [],
     }
     render(<UsageSection {...injected(remoteWith(value))} />)
     await waitFor(() => expect(screen.getByRole('button', { name: '今天' })).toBeTruthy())
     // Today's totals cover the one-day window (summarized as a grand total).
-    expect(screen.getByText(/610 tokens · 3 次网络搜索/)).toBeTruthy()
+    expect(screen.getByText(/610 tokens · 4 次请求 · 3 次网络搜索/)).toBeTruthy()
     expect(screen.getByText(/400/)).toBeTruthy()
     expect(screen.getByText(/120/)).toBeTruthy()
   })

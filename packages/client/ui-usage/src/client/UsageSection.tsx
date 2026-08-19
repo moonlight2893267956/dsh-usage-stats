@@ -116,6 +116,7 @@ function Loaded({ injected }: { injected: UsageSectionInjected }): ReactNode {
   const loading = state.status !== 'ready'
 
   const totals: Record<CategoryKey, number> = { input: 0, cacheRead: 0, output: 0 }
+  let requests = 0
   let searches = 0
   let grand = 0
   let maxDay = 1
@@ -124,6 +125,7 @@ function Loaded({ injected }: { injected: UsageSectionInjected }): ReactNode {
     const total = dayTotal(bucket)
     grand += total
     if (total > maxDay) maxDay = total
+    requests += bucket.requests
     searches += bucket.searches
   }
 
@@ -143,6 +145,7 @@ function Loaded({ injected }: { injected: UsageSectionInjected }): ReactNode {
           {substitute(t('summary'), {
             days: String(days),
             total: formatCompact(grand),
+            requests: String(requests),
             searches: String(searches),
           })}
         </p>
@@ -187,6 +190,17 @@ function Loaded({ injected }: { injected: UsageSectionInjected }): ReactNode {
             <span className={styles['cardSub']}>{t('unit.tokens')}</span>
           </div>
         ))}
+        <div
+          className={`${styles['card']} ${styles['catRequests']}`}
+          style={{ animationDelay: `${CATEGORIES.length * 70}ms` }}
+        >
+          <span className={styles['cardHead']}>
+            <span className={styles['dot']} />
+            <span className={styles['cardLabel']}>{t('requests')}</span>
+          </span>
+          <span className={styles['cardValue']}>{formatCompact(requests)}</span>
+          <span className={styles['cardSub']}>{t('requests')}</span>
+        </div>
       </div>
 
       <div className={styles['chart']}>
@@ -247,6 +261,10 @@ function Loaded({ injected }: { injected: UsageSectionInjected }): ReactNode {
                                   <span className={`${styles['tipRow']} ${styles['tipTotal']}`}>
                                     <span className={styles['tipKey']}>{t('tip.total')}</span>
                                     <span className={styles['tipValue']}>{`${formatFull(total)} ${t('unit.tokens')}`}</span>
+                                  </span>
+                                  <span className={styles['tipRow']}>
+                                    <span className={styles['tipKey']}>{t('requests')}</span>
+                                    <span className={styles['tipValue']}>{bucket.requests}</span>
                                   </span>
                                   <span className={`${styles['tipRow']} ${styles['tipSearches']}`}>
                                     <span className={styles['tipKey']}>{t('tip.searches')}</span>

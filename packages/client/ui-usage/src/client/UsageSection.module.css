@@ -353,6 +353,10 @@
   --cat-color: #ff9f43;
 }
 
+.catRequests {
+  --cat-color: #8f6cf5;
+}
+
 @keyframes growUp {
   from {
     transform: scaleY(0);
