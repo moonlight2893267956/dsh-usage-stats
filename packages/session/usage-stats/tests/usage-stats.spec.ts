@@ -27,6 +27,13 @@ function dayTime(offsetDays: number): number {
   return date.getTime()
 }
 
+/** Today at a specific hour (minute/second/ms zeroed). */
+function todayAtHour(hour: number): number {
+  const date = new Date()
+  date.setHours(hour, 0, 0, 0)
+  return date.getTime()
+}
+
 /** Local `YYYY-MM-DD` for the same day the service buckets `dayTime(offsetDays)` into. */
 function dayKey(offsetDays: number): string {
   const date = new Date(dayTime(offsetDays))
@@ -102,13 +109,13 @@ describe('UsageStatsService', () => {
       expect(value.days).toBe(30)
       expect(value.buckets).toHaveLength(30)
       expect(bucketFor(value, 0)).toMatchObject({ input: 107, output: 23, requests: 2, searches: 1 })
-      expect(bucketFor(value, 2)).toMatchObject({ input: 10, output: 5, cacheRead: 40, requests: 1, searches: 0 })
+      expect(bucketFor(value, 2)).toMatchObject({ input: 50, output: 5, cacheRead: 40, requests: 1, searches: 0 })
     } finally {
       await ctx.fiber.dispose()
     }
   })
 
-  it('folds cache-write tokens into input and reads cache-read separately', async () => {
+  it('folds cache-read hits into input and excludes cache-write', async () => {
     const ctx = await mount([
       {
         meta: header('a'),
@@ -117,7 +124,8 @@ describe('UsageStatsService', () => {
     ])
     try {
       const value = await ctx.usageStats.stats({ days: 7 })
-      expect(bucketFor(value, 0)).toMatchObject({ input: 16, cacheRead: 50, output: 1 })
+      // input = uncached (10) + cache-read hits (50); cache-write (6) is excluded.
+      expect(bucketFor(value, 0)).toMatchObject({ input: 60, cacheRead: 50, output: 1 })
     } finally {
       await ctx.fiber.dispose()
     }
@@ -234,6 +242,60 @@ describe('UsageStatsService', () => {
       // The window model list always reports every model, not just the filtered ones,
       // so the dropdown never shrinks to only the selected models.
       expect([...value.models].sort()).toEqual(['deepseek-chat', 'deepseek-reasoner'])
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('includes per-hour breakdown for a single-day window', async () => {
+    const ctx = await mount([
+      {
+        meta: header('a'),
+        events: [
+          usageEvent(todayAtHour(10), { inputTokens: 100, outputTokens: 20 }),
+          usageEvent(todayAtHour(14), { inputTokens: 50, outputTokens: 10, cacheReadTokens: 30 }),
+          searchEvent(todayAtHour(14)),
+        ],
+      },
+    ])
+    try {
+      const value = await ctx.usageStats.stats({ days: 1 })
+      const bucket = bucketFor(value, 0)
+      expect(bucket.hours).toHaveLength(24)
+      expect(bucket.hours![10]).toMatchObject({ hour: 10, input: 100, output: 20, cacheRead: 0, requests: 1, searches: 0 })
+      expect(bucket.hours![14]).toMatchObject({ hour: 14, input: 80, output: 10, cacheRead: 30, requests: 1, searches: 1 })
+      expect(bucket.hours![0]).toMatchObject({ hour: 0, input: 0, output: 0, cacheRead: 0, requests: 0, searches: 0 })
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('omits per-hour breakdown for multi-day windows', async () => {
+    const ctx = await mount([
+      { meta: header('a'), events: [usageEvent(dayTime(0), { inputTokens: 10, outputTokens: 1 })] },
+    ])
+    try {
+      const value = await ctx.usageStats.stats({ days: 7 })
+      expect(bucketFor(value, 0).hours).toBeUndefined()
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('filters per-hour totals to the requested models', async () => {
+    const ctx = await mount([
+      {
+        meta: header('a'),
+        events: [
+          usageEvent(todayAtHour(10), { inputTokens: 100, outputTokens: 20 }, 'deepseek-reasoner'),
+          usageEvent(todayAtHour(10), { inputTokens: 200, outputTokens: 40 }, 'deepseek-chat'),
+        ],
+      },
+    ])
+    try {
+      const value = await ctx.usageStats.stats({ days: 1, models: ['deepseek-reasoner'] })
+      const bucket = bucketFor(value, 0)
+      expect(bucket.hours![10]).toMatchObject({ hour: 10, input: 100, output: 20, requests: 1 })
     } finally {
       await ctx.fiber.dispose()
     }

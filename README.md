@@ -26,7 +26,7 @@ wiring.patch                     应用进 monorepo 的 6 处接线改动（见�
 
 - **数据源是持久化会话日志**（每条 `assistant/message` 带 `usage` 与 `time`），Host 按天聚合并通过 Typert Remote `usageStats.stats()` 暴露给浏览器。日志本身即持久存储，因此**重启不丢、近 N 天历史可回填**，无需另建存储。
 - **增量折叠**：`sessionPersistence.list()` 列出会话，`readFrom(id, cursor)` 只读新增事件，按 `event.time` 归入当天桶；`assistant/message.usage` 累加 token，`web_search` 工具调用计搜索数。
-- **统计口径**：输入 = `inputTokens + cacheWriteTokens`，缓存命中 = `cacheReadTokens`，输出 = `outputTokens`，每日合计 = 三者之和（与仓库 token-meter 的 `usageTokens` 一致）。
+- **统计口径**：输入 = `inputTokens + cacheReadTokens`（输入已含命中，合计 = 输入 + 输出，避免与缓存命中重复计），缓存命中 = `cacheReadTokens`，输出 = `outputTokens`。单天窗口（`days=1`）额外返回逐小时明细 `hours`（24 条），由 Client 的「今天」视图按小时渲染柱状图。
 - **Client 刷新**：`UsageSection` 每次挂载都重拉（不只在 `idle` 时），所以离开再进入「用量」页会显示最新数据，而不是首次访问的旧合计。
 
 ## 如何装进 deepseek-harness 跑起来

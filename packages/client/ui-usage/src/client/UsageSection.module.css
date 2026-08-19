@@ -1,14 +1,14 @@
 /*
- * Usage settings section. Theme colors resolve through `--dsw-alias-*` tokens;
- * the three chart series colors are fixed categorical accents carried on the
- * per-category `--cat-color` custom property. Bars grow in with a staggered
- * scaleY cascade, cards fade up, and the hover tooltip fades in above its day.
+ * Usage settings section. DeepSeek-console inspired: a dark, precise dashboard
+ * with compact metric cards, a tall stacked bar chart, thin blue bars, and a
+ * black pill tooltip. Colors are baked in so the layout reads the same in
+ * every theme.
  */
 
 .page {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 16px;
   max-width: 760px;
   color: var(--dsw-alias-label-primary);
 }
@@ -16,27 +16,14 @@
 .header {
   display: flex;
   flex-direction: column;
+  gap: 12px;
 }
 
 .title {
-  margin: 0 0 6px;
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.intro {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--dsw-alias-label-secondary);
-}
-
-.summary {
-  margin: 8px 0 0;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-primary);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .controls {
@@ -44,7 +31,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 16px;
+  flex-wrap: wrap;
 }
 
 .range {
@@ -61,10 +48,10 @@
   border: 0;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
-  padding: 5px 16px;
+  padding: 5px 14px;
   border-radius: 999px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   transition: color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -77,23 +64,29 @@
 .rangeButtonActive:hover {
   background: var(--dsw-alias-bg-overlay);
   color: var(--dsw-alias-label-primary);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
 }
 
-.metrics {
+.cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
 }
 
 .card {
   display: flex;
   flex-direction: column;
-  background: var(--dsw-alias-bg-layer-1);
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 14px;
+  gap: 8px;
   padding: 16px 18px;
-  animation: fadeUp 0.5s ease backwards;
+  background: var(--dsw-alias-bg-layer-2);
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
+}
+
+.card:hover {
+  background: var(--dsw-alias-bg-overlay);
+  border-color: var(--dsw-alias-border-l2);
+  transform: translateY(-1px);
 }
 
 .cardHead {
@@ -102,50 +95,56 @@
   gap: 8px;
 }
 
-.dot {
-  width: 9px;
-  height: 9px;
+.cardDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  flex: none;
   background: var(--cat-color);
+  flex-shrink: 0;
 }
 
 .cardLabel {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .cardValue {
-  margin-top: 10px;
-  font-size: 30px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: 22px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-primary);
+  line-height: 1.2;
 }
 
 .cardSub {
-  margin-top: 3px;
-  font-size: 12px;
-  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .chart {
-  background: var(--dsw-alias-bg-layer-1);
+  position: relative;
+  padding: 18px 20px 16px;
+  background: var(--dsw-alias-bg-layer-2);
   border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 14px;
-  padding: 18px 20px;
+  border-radius: 12px;
 }
 
 .chartTitle {
-  margin: 0 0 4px;
-  font-size: 15px;
+  margin: 0 0 16px;
+  font-size: 14px;
   font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--dsw-alias-label-secondary);
 }
 
-.chartHint {
-  margin: 0 0 14px;
-  font-size: 12px;
-  color: var(--dsw-alias-label-secondary);
+.chartTotal {
+  color: var(--dsw-alias-label-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  margin-left: 4px;
 }
 
 .chartLoading,
@@ -153,33 +152,35 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 200px;
-  font-size: 13px;
+  height: 280px;
+  font-size: 12px;
   color: var(--dsw-alias-label-tertiary);
 }
 
 .plot {
   display: flex;
-  gap: 10px;
+  gap: 14px;
 }
 
 .yAxis {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  height: 200px;
-  width: 44px;
+  height: 280px;
+  width: 42px;
   flex: none;
   text-align: right;
   font-size: 11px;
-  color: var(--dsw-alias-label-secondary);
+  font-weight: 500;
+  color: var(--dsw-alias-label-tertiary);
   user-select: none;
+  font-variant-numeric: tabular-nums;
 }
 
 .grid {
   position: relative;
   flex: 1;
-  height: 200px;
+  height: 280px;
 }
 
 .gridline {
@@ -188,40 +189,56 @@
   right: 0;
   height: 1px;
   background: var(--dsw-alias-border-l1);
-  opacity: 0.5;
+  opacity: 0.35;
 }
 
 .bars {
   position: relative;
-  height: 200px;
+  height: 280px;
   display: flex;
+  align-items: flex-end;
   gap: 3px;
+  padding: 0 2px;
+}
+
+.chartHourly .bars {
+  gap: 2px;
 }
 
 .bar {
   position: relative;
   flex: 1;
-  min-width: 0;
-  height: 200px;
+  min-width: 4px;
+  max-width: 28px;
+  margin: 0 auto;
+  height: 100%;
   cursor: pointer;
+}
+
+.chartHourly .bar {
+  max-width: 18px;
 }
 
 .stack {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 50%;
   bottom: 0;
+  transform: translateX(-50%);
+  width: 75%;
   display: flex;
-  flex-direction: column-reverse;
-  border-radius: 4px 4px 2px 2px;
+  flex-direction: column;
+  border-radius: 3px 3px 0 0;
   overflow: hidden;
   transform-origin: bottom;
-  animation: growUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-  transition: filter 0.15s ease;
+  animation: growUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.chartHourly .stack {
+  width: 85%;
 }
 
 .bar:hover .stack {
-  filter: brightness(0.92);
+  filter: brightness(1.08);
 }
 
 .seg {
@@ -232,27 +249,39 @@
 
 .barEmpty {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 50%;
   bottom: 0;
-  height: 2px;
-  border-radius: 2px;
+  width: 50%;
+  height: 1px;
   background: var(--dsw-alias-border-l1);
+  transform: translateX(-50%);
 }
 
 .xAxis {
   display: flex;
   justify-content: space-between;
-  margin-top: 10px;
+  margin: 10px 0 0 56px;
   font-size: 11px;
-  color: var(--dsw-alias-label-secondary);
+  font-weight: 500;
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.xAxisHourly {
+  margin-left: 56px;
+}
+
+.xAxisSingle {
+  justify-content: flex-start;
 }
 
 .legend {
   display: flex;
-  gap: 18px;
-  margin-top: 14px;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 18px;
   font-size: 12px;
+  font-weight: 500;
   color: var(--dsw-alias-label-secondary);
 }
 
@@ -262,61 +291,67 @@
   gap: 6px;
 }
 
+.swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--cat-color);
+}
+
+/* Tooltip: a flat black pill with the bucket label on the left and the total
+ * on the right, then one line per category — a colored swatch, the label, and
+ * the value right-aligned. Anchored over the bar with a small margin from the
+ * top so it never collides with the title. */
 .tip {
   position: absolute;
   z-index: 50;
-  padding: 10px 12px;
-  white-space: nowrap;
+  transform: translateX(-50%);
+  min-width: 220px;
+  max-width: 300px;
+  padding: 10px 14px;
   font-size: 12px;
-  background: var(--dsw-alias-bg-overlay);
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 16%);
+  line-height: 1.5;
+  color: #fff;
+  background: rgb(0 0 0 / 88%);
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 32%);
   pointer-events: none;
-  animation: tipIn 0.16s ease-out;
+  animation: tipIn 0.18s ease-out;
 }
 
-.tipDate {
-  display: block;
-  font-weight: 600;
+.tipHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 6px;
+  font-weight: 600;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
 }
 
-.tipRow {
+.tipLine {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  margin-top: 3px;
-}
-
-.tipKey {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--dsw-alias-label-secondary);
-}
-
-.tipDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--cat-color);
-}
-
-.tipValue {
-  font-weight: 600;
+  padding: 2px 0;
+  color: rgb(255 255 255 / 78%);
   font-variant-numeric: tabular-nums;
 }
 
-.tipTotal {
-  border-top: 1px solid var(--dsw-alias-border-l1);
-  margin-top: 6px;
-  padding-top: 6px;
+.tipLine > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.tipSearches {
-  color: var(--dsw-alias-label-secondary);
+.tipSwatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--cat-color);
 }
 
 .error {
@@ -340,53 +375,53 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
-/* The three chart series colors (fixed categorical accents). */
+/* Lightest → darkest: input miss (top) < cache hit < output (bottom). */
 .catInput {
-  --cat-color: #5b8ff9;
+  --cat-color: #a8c5ff;
 }
 
 .catCacheRead {
-  --cat-color: #34c99b;
+  --cat-color: #4f8cff;
 }
 
 .catOutput {
-  --cat-color: #ff9f43;
+  --cat-color: #1c4ed0;
 }
 
 .catRequests {
-  --cat-color: #8f6cf5;
+  --cat-color: #6b7280;
+}
+
+@media (max-width: 640px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+
+  .chartHourly .bar {
+    max-width: 12px;
+  }
 }
 
 @keyframes growUp {
   from {
-    transform: scaleY(0);
+    transform: translateX(-50%) scaleY(0);
     opacity: 0;
   }
 
   to {
-    transform: scaleY(1);
+    transform: translateX(-50%) scaleY(1);
     opacity: 1;
-  }
-}
-
-@keyframes fadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 
 @keyframes tipIn {
   from {
     opacity: 0;
+    transform: translateX(-50%) translateY(-4px);
   }
 
   to {
     opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
 }

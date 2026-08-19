@@ -14,7 +14,7 @@ import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 // Type-only: pulls the `sessionPersistence` Context merge into this program.
 import type {} from '@deepseek-ai/dsh-session-persistence'
-import type { UsageStatsDay, UsageStatsModelTotals, UsageStatsRequest, UsageStatsValue } from './types.ts'
+import type { UsageStatsDay, UsageStatsHour, UsageStatsModelTotals, UsageStatsRequest, UsageStatsValue } from './types.ts'
 
 export type * from './types.ts'
 
@@ -44,6 +44,22 @@ function emptyModel(): ModelTotals {
   return { input: 0, cacheRead: 0, output: 0, requests: 0 }
 }
 
+/** One mutable per-hour accumulator. */
+interface HourTotals {
+  input: number
+  cacheRead: number
+  output: number
+  requests: number
+  searches: number
+  /** Per-model token totals within this hour. */
+  models: Map<string, ModelTotals>
+}
+
+/** A zeroed hour bucket. */
+function emptyHour(): HourTotals {
+  return { input: 0, cacheRead: 0, output: 0, requests: 0, searches: 0, models: new Map() }
+}
+
 /** One mutable per-day accumulator. */
 interface DayTotals {
   input: number
@@ -53,11 +69,13 @@ interface DayTotals {
   searches: number
   /** Per-model token totals; a model absent from the map has seen no tokens that day. */
   models: Map<string, ModelTotals>
+  /** 24 per-hour buckets, index 0–23. */
+  hours: HourTotals[]
 }
 
 /** A zeroed day bucket. */
 function emptyDay(): DayTotals {
-  return { input: 0, cacheRead: 0, output: 0, requests: 0, searches: 0, models: new Map() }
+  return { input: 0, cacheRead: 0, output: 0, requests: 0, searches: 0, models: new Map(), hours: Array.from({ length: 24 }, emptyHour) }
 }
 
 /** Local calendar-day key (`YYYY-MM-DD`) for one epoch-millisecond event time. */
@@ -137,22 +155,39 @@ export class UsageStatsService extends TypertRemoteService {
       const usage = event.data.usage
       if (usage === undefined) return
       const day = this.day(event.time)
-      day.input += usage.inputTokens + (usage.cacheWriteTokens ?? 0)
+      const hour = day.hours[new Date(event.time).getHours()]!
+      // input = full prompt input (uncached + cache-read hits); cacheWrite is
+      // excluded so `input + cacheRead` never double-counts (input already
+      // contains cacheRead). cacheRead is also kept separately for the
+      // hit-share display.
+      day.input += usage.inputTokens + (usage.cacheReadTokens ?? 0)
       day.cacheRead += usage.cacheReadTokens ?? 0
       day.output += usage.outputTokens
       // One assistant message with usage is one model completion request.
       day.requests += 1
+      hour.input += usage.inputTokens + (usage.cacheReadTokens ?? 0)
+      hour.cacheRead += usage.cacheReadTokens ?? 0
+      hour.output += usage.outputTokens
+      hour.requests += 1
       const model = event.data.message.source.model
       if (model !== undefined) {
         const totals = day.models.get(model) ?? emptyModel()
-        totals.input += usage.inputTokens + (usage.cacheWriteTokens ?? 0)
+        totals.input += usage.inputTokens + (usage.cacheReadTokens ?? 0)
         totals.cacheRead += usage.cacheReadTokens ?? 0
         totals.output += usage.outputTokens
         totals.requests += 1
         day.models.set(model, totals)
+        const hourTotals = hour.models.get(model) ?? emptyModel()
+        hourTotals.input += usage.inputTokens + (usage.cacheReadTokens ?? 0)
+        hourTotals.cacheRead += usage.cacheReadTokens ?? 0
+        hourTotals.output += usage.outputTokens
+        hourTotals.requests += 1
+        hour.models.set(model, hourTotals)
       }
     } else if (event.type === 'tool/call' && event.data.name === 'web_search') {
-      this.day(event.time).searches += 1
+      const day = this.day(event.time)
+      day.searches += 1
+      day.hours[new Date(event.time).getHours()]!.searches += 1
     }
   }
 
@@ -209,6 +244,38 @@ export class UsageStatsService extends TypertRemoteService {
       for (const model of day.models.keys()) {
         seenModels.add(model)
       }
+      // Per-hour breakdown is only included for a single-day window (today).
+      const hours: UsageStatsHour[] | undefined = days === 1
+        ? day.hours.map((hour, hourIndex) => {
+          let hInput = 0
+          let hCacheRead = 0
+          let hOutput = 0
+          let hRequests = 0
+          if (modelFilter === null) {
+            hInput = hour.input
+            hCacheRead = hour.cacheRead
+            hOutput = hour.output
+            hRequests = hour.requests
+          } else {
+            for (const model of modelFilter) {
+              const totals = hour.models.get(model)
+              if (totals === undefined) continue
+              hInput += totals.input
+              hCacheRead += totals.cacheRead
+              hOutput += totals.output
+              hRequests += totals.requests
+            }
+          }
+          return Object.freeze({
+            hour: hourIndex,
+            input: hInput,
+            cacheRead: hCacheRead,
+            output: hOutput,
+            requests: hRequests,
+            searches: hour.searches,
+          })
+        })
+        : undefined
       buckets.push(Object.freeze({
         date: key,
         input,
@@ -217,6 +284,7 @@ export class UsageStatsService extends TypertRemoteService {
         requests,
         searches: day.searches,
         models: Object.freeze(modelsOut),
+        ...(hours !== undefined ? { hours } : {}),
       }))
     }
     return Object.freeze({

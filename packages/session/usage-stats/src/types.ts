@@ -7,7 +7,7 @@
 
 /** One model's token totals within a single day. */
 export interface UsageStatsModelTotals {
-  /** Uncached input plus cache-write tokens (the prompt side that was not reused). */
+  /** Full prompt input: uncached input plus cache-read hits (contains `cacheRead`). */
   readonly input: number
   /** Cache-read tokens (prompt-cache hits — the reused prefix). */
   readonly cacheRead: number
@@ -17,11 +17,27 @@ export interface UsageStatsModelTotals {
   readonly requests: number
 }
 
+/** One hour's usage totals within a single day. */
+export interface UsageStatsHour {
+  /** Hour of the day, 0–23. */
+  readonly hour: number
+  /** Full prompt input: uncached input plus cache-read hits (contains `cacheRead`). */
+  readonly input: number
+  /** Cache-read tokens (prompt-cache hits — the reused prefix). */
+  readonly cacheRead: number
+  /** Output (completion) tokens. */
+  readonly output: number
+  /** Model completion requests made that hour. */
+  readonly requests: number
+  /** `web_search` tool calls made that hour. */
+  readonly searches: number
+}
+
 /** One calendar day's usage totals, aggregated across every session on this device. */
 export interface UsageStatsDay {
   /** Local calendar day, `YYYY-MM-DD`. */
   readonly date: string
-  /** Uncached input plus cache-write tokens (the prompt side that was not reused). */
+  /** Full prompt input: uncached input plus cache-read hits (contains `cacheRead`). */
   readonly input: number
   /** Cache-read tokens (prompt-cache hits — the reused prefix). */
   readonly cacheRead: number
@@ -33,6 +49,8 @@ export interface UsageStatsDay {
   readonly searches: number
   /** Per-model token totals for the day, keyed by model id. */
   readonly models: Readonly<Record<string, UsageStatsModelTotals>>
+  /** Per-hour breakdown (24 entries, hour 0–23); present only when the window is a single day. */
+  readonly hours?: readonly UsageStatsHour[]
 }
 
 /** Read the per-day aggregate over a trailing window. */

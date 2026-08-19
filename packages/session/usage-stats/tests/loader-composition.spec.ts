@@ -105,7 +105,7 @@ describe('usage-stats through a real Loader composition', () => {
     expect(durable.events).toHaveLength(2)
 
     const value = await first.usageStats.stats({ days: 30 })
-    expect(bucketFor(value, todayKey())).toMatchObject({ input: 100, output: 20, cacheRead: 50, searches: 1 })
+    expect(bucketFor(value, todayKey())).toMatchObject({ input: 150, output: 20, cacheRead: 50, searches: 1 })
 
     await first.fiber.dispose()
     contexts.splice(contexts.indexOf(first), 1)
@@ -113,6 +113,6 @@ describe('usage-stats through a real Loader composition', () => {
     // A cold composition re-derives the aggregate from the persisted log.
     const second = await loadComposition(configPath)
     const again = await second.usageStats.stats({ days: 30 })
-    expect(bucketFor(again, todayKey())).toMatchObject({ input: 100, output: 20, cacheRead: 50, searches: 1 })
+    expect(bucketFor(again, todayKey())).toMatchObject({ input: 150, output: 20, cacheRead: 50, searches: 1 })
   })
 })

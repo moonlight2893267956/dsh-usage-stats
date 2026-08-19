@@ -12,7 +12,7 @@ Cross-session per-day token-usage statistics, folded from the durable session lo
 
 Folds every session's newly durable events into the per-day totals, then returns the trailing `days`-long window, oldest first. Each bucket is one local calendar day:
 
-- `input` — uncached input plus cache-write tokens (the prompt side that was not reused).
+- `input` — full prompt input: uncached input plus cache-read hits (contains `cacheRead`).
 - `cacheRead` — cache-read tokens (prompt-cache hits — the reused prefix).
 - `output` — output (completion) tokens.
 - `searches` — `web_search` tool calls made that day.

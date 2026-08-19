@@ -32,20 +32,10 @@ export interface UsageSectionInjected {
 export type UsageSectionProps = Partial<UsageSectionInjected>
 
 /** Selectable window lengths, in days. `1` is today (the current calendar day). */
-const RANGES = [1, 7, 30, 90] as const
+const RANGES = [1, 7, 30] as const
 
 /** Y-axis gridline count. */
-const TICKS = 4
-
-/** One token category: its bucket field, copy key, and color-owning CSS class. */
-const CATEGORIES = [
-  { key: 'input', labelKey: 'cat.input', className: styles['catInput'] },
-  { key: 'cacheRead', labelKey: 'cat.cacheRead', className: styles['catCacheRead'] },
-  { key: 'output', labelKey: 'cat.output', className: styles['catOutput'] },
-] as const
-
-/** A category's bucket field. */
-type CategoryKey = (typeof CATEGORIES)[number]['key']
+const TICKS = 2
 
 /** Compact token count: 1.2K, 3.4M. */
 function formatCompact(value: number): string {
@@ -67,12 +57,72 @@ function dateLabel(key: string): string {
 
 /** Total tokens across every category for one day. */
 function dayTotal(day: UsageStatsDay): number {
-  return day.input + day.cacheRead + day.output
+  // `input` already contains `cacheRead`, so the total is input + output
+  // (adding `cacheRead` separately would double-count the hit share).
+  return day.input + day.output
 }
 
-/** Fill the `{placeholder}` tokens in localized copy. */
-function substitute(template: string, values: Record<string, string>): string {
-  return template.replace(/\{(\w+)\}/g, (match, name: string) => values[name] ?? match)
+/** A unified chart bucket: either a per-day or per-hour slice. */
+interface ChartBucket {
+  key: string
+  label: string
+  input: number
+  cacheRead: number
+  output: number
+  requests: number
+  searches: number
+}
+
+/** Total tokens for a chart bucket. */
+function bucketTotal(bucket: ChartBucket): number {
+  return bucket.input + bucket.output
+}
+
+/** `HH:00` label for an hour index. */
+function hourLabel(hour: number): string {
+  return `${String(hour).padStart(2, '0')}:00`
+}
+
+/** DeepSeek-style x-axis labels: four evenly spaced ticks for a 24-hour day. */
+function hourAxisLabels(): string[] {
+  return [hourLabel(0), hourLabel(8), hourLabel(16), hourLabel(23)]
+}
+
+/** X-axis labels for a daily chart: first, middle, last date; a single bucket
+ * is shown once to avoid redundant labels. */
+function dayAxisLabels(buckets: ChartBucket[]): string[] {
+  const first = buckets[0]
+  if (buckets.length <= 1) return [first?.label ?? '']
+  const mid = buckets[Math.floor(buckets.length / 2)]
+  const last = buckets[buckets.length - 1]
+  return [first?.label ?? '', mid?.label ?? '', last?.label ?? '']
+}
+
+/** Build the chart buckets array: per-hour when days=1, per-day otherwise. */
+function buildChartBuckets(buckets: readonly UsageStatsDay[], days: number): ChartBucket[] {
+  if (days === 1) {
+    const day = buckets[0]
+    if (day?.hours !== undefined) {
+      return day.hours.map(h => ({
+        key: `h${h.hour}`,
+        label: hourLabel(h.hour),
+        input: h.input,
+        cacheRead: h.cacheRead,
+        output: h.output,
+        requests: h.requests,
+        searches: h.searches,
+      }))
+    }
+  }
+  return buckets.map(b => ({
+    key: b.date,
+    label: dateLabel(b.date),
+    input: b.input,
+    cacheRead: b.cacheRead,
+    output: b.output,
+    requests: b.requests,
+    searches: b.searches,
+  }))
 }
 
 /**
@@ -115,40 +165,38 @@ function Loaded({ injected }: { injected: UsageSectionInjected }): ReactNode {
   const selectedModels = state.selectedModels
   const loading = state.status !== 'ready'
 
-  const totals: Record<CategoryKey, number> = { input: 0, cacheRead: 0, output: 0 }
+  const totals: Record<'input' | 'cacheRead' | 'output', number> = { input: 0, cacheRead: 0, output: 0 }
   let requests = 0
   let searches = 0
   let grand = 0
-  let maxDay = 1
   for (const bucket of buckets) {
-    for (const category of CATEGORIES) totals[category.key] += bucket[category.key]
-    const total = dayTotal(bucket)
-    grand += total
-    if (total > maxDay) maxDay = total
+    totals.input += bucket.input
+    totals.cacheRead += bucket.cacheRead
+    totals.output += bucket.output
+    grand += dayTotal(bucket)
     requests += bucket.requests
     searches += bucket.searches
   }
 
-  const ticks: number[] = []
-  for (let i = 0; i <= TICKS; i++) ticks.push((maxDay / TICKS) * i)
+  const chartBuckets = buildChartBuckets(buckets, days)
+  let maxBucket = 1
+  for (const cb of chartBuckets) {
+    const total = bucketTotal(cb)
+    if (total > maxBucket) maxBucket = total
+  }
 
-  const first = buckets[0]
-  const last = buckets[buckets.length - 1]
-  const count = buckets.length
+  const ticks: number[] = []
+  for (let i = 0; i <= TICKS; i++) ticks.push((maxBucket / TICKS) * i)
+
+  const isToday = days === 1
+  const isHourly = isToday && chartBuckets.length > 1
+  const count = chartBuckets.length
+  const hitRate = totals.input > 0 ? Math.round((totals.cacheRead / totals.input) * 100) : 0
 
   return (
     <div className={styles['page']}>
       <header className={styles['header']}>
         <h2 className={styles['title']}>{t('title')}</h2>
-        <p className={styles['intro']}>{t('intro')}</p>
-        <p className={styles['summary']}>
-          {substitute(t('summary'), {
-            days: String(days),
-            total: formatCompact(grand),
-            requests: String(requests),
-            searches: String(searches),
-          })}
-        </p>
         <div className={styles['controls']}>
           {availableModels.length > 0 && (
             <ModelFilter
@@ -175,37 +223,43 @@ function Loaded({ injected }: { injected: UsageSectionInjected }): ReactNode {
         </div>
       </header>
 
-      <div className={styles['metrics']}>
-        {CATEGORIES.map((category, index) => (
-          <div
-            key={category.key}
-            className={`${styles['card']} ${category.className}`}
-            style={{ animationDelay: `${index * 70}ms` }}
-          >
-            <span className={styles['cardHead']}>
-              <span className={styles['dot']} />
-              <span className={styles['cardLabel']}>{t(category.labelKey)}</span>
-            </span>
-            <span className={styles['cardValue']}>{formatCompact(totals[category.key])}</span>
-            <span className={styles['cardSub']}>{t('unit.tokens')}</span>
+      <div className={styles['cards']}>
+        <div className={`${styles['card']} ${styles['catInput']}`}>
+          <div className={styles['cardHead']}>
+            <span className={styles['cardDot']} />
+            <span className={styles['cardLabel']}>{t('cat.input')}</span>
           </div>
-        ))}
-        <div
-          className={`${styles['card']} ${styles['catRequests']}`}
-          style={{ animationDelay: `${CATEGORIES.length * 70}ms` }}
-        >
-          <span className={styles['cardHead']}>
-            <span className={styles['dot']} />
+          <span className={styles['cardValue']}>{formatFull(totals.input)}</span>
+          <span className={styles['cardSub']}>{t('card.input.sub').replace('{rate}', String(hitRate))}</span>
+        </div>
+        <div className={`${styles['card']} ${styles['catCacheRead']}`}>
+          <div className={styles['cardHead']}>
+            <span className={styles['cardDot']} />
+            <span className={styles['cardLabel']}>{t('cat.cacheRead')}</span>
+          </div>
+          <span className={styles['cardValue']}>{formatFull(totals.cacheRead)}</span>
+        </div>
+        <div className={`${styles['card']} ${styles['catOutput']}`}>
+          <div className={styles['cardHead']}>
+            <span className={styles['cardDot']} />
+            <span className={styles['cardLabel']}>{t('cat.output')}</span>
+          </div>
+          <span className={styles['cardValue']}>{formatFull(totals.output)}</span>
+        </div>
+        <div className={`${styles['card']} ${styles['catRequests']}`}>
+          <div className={styles['cardHead']}>
+            <span className={styles['cardDot']} />
             <span className={styles['cardLabel']}>{t('requests')}</span>
-          </span>
-          <span className={styles['cardValue']}>{formatCompact(requests)}</span>
-          <span className={styles['cardSub']}>{t('requests')}</span>
+          </div>
+          <span className={styles['cardValue']}>{formatFull(requests)}</span>
         </div>
       </div>
 
-      <div className={styles['chart']}>
-        <h3 className={styles['chartTitle']}>{t('chart.title')}</h3>
-        <p className={styles['chartHint']}>{substitute(t('chart.hint'), { days: String(days) })}</p>
+      <div className={`${styles['chart']} ${isHourly ? styles['chartHourly'] : ''}`}>
+        <h3 className={styles['chartTitle']}>
+          {isToday ? t('chart.title.today') : t('chart.title')}
+          {grand > 0 && <span className={styles['chartTotal']}>{` ${formatFull(grand)}`}</span>}
+        </h3>
         {loading
           ? <div className={styles['chartLoading']}>{t('state.loading')}</div>
           : grand === 0
@@ -220,94 +274,148 @@ function Loaded({ injected }: { injected: UsageSectionInjected }): ReactNode {
                   </div>
                   <div className={styles['grid']}>
                     {ticks.slice(1).map(value => (
-                      <div key={value} className={styles['gridline']} style={{ bottom: `${(value / maxDay) * 100}%` }} />
+                      <div key={value} className={styles['gridline']} style={{ bottom: `${(value / maxBucket) * 100}%` }} />
                     ))}
                     <div className={styles['bars']} key={days}>
-                      {buckets.map((bucket, index) => {
-                        const total = dayTotal(bucket)
-                        const fraction = total / maxDay
-                        const isHovered = hovered === bucket.date
-                        // Edge days anchor the tooltip inward so it never clips
-                        // the panel; tall bars open it downward instead.
-                        const align = count > 1 ? index / (count - 1) : 0.5
-                        const tipStyle: Record<string, string> = {}
-                        if (align < 0.2) tipStyle.left = '0px'
-                        else if (align > 0.8) tipStyle.right = '0px'
-                        else { tipStyle.left = '50%'; tipStyle.transform = 'translateX(-50%)' }
-                        if (fraction > 0.85) tipStyle.top = '4px'
-                        else tipStyle.bottom = `calc(${fraction * 100}% + 10px)`
+                      {chartBuckets.map((bucket, index) => {
+                        const total = bucketTotal(bucket)
+                        const fraction = total / maxBucket
+                        const cacheMiss = bucket.input - bucket.cacheRead
                         return (
                           <div
-                            key={bucket.date}
-                            className={styles['bar']}
-                            onMouseEnter={() => { setHovered(bucket.date) }}
-                            onMouseLeave={() => { setHovered(current => (current === bucket.date ? null : current)) }}
+                            key={bucket.key}
+                            className={`${styles['bar']} ${hovered === bucket.key ? styles['barHover'] : ''}`}
+                            onMouseEnter={() => { setHovered(bucket.key) }}
+                            onMouseLeave={() => { setHovered(current => (current === bucket.key ? null : current)) }}
                           >
-                            {isHovered
-                              ? (
-                                <div className={styles['tip']} style={tipStyle} role="tooltip">
-                                  <span className={styles['tipDate']}>{dateLabel(bucket.date)}</span>
-                                  {CATEGORIES.map(category => bucket[category.key] > 0
-                                    ? (
-                                      <span key={category.key} className={styles['tipRow']}>
-                                        <span className={styles['tipKey']}>
-                                          <span className={`${styles['tipDot']} ${category.className}`} />
-                                          {t(category.labelKey)}
-                                        </span>
-                                        <span className={styles['tipValue']}>{formatFull(bucket[category.key])}</span>
-                                      </span>
-                                    )
-                                    : null)}
-                                  <span className={`${styles['tipRow']} ${styles['tipTotal']}`}>
-                                    <span className={styles['tipKey']}>{t('tip.total')}</span>
-                                    <span className={styles['tipValue']}>{`${formatFull(total)} ${t('unit.tokens')}`}</span>
-                                  </span>
-                                  <span className={styles['tipRow']}>
-                                    <span className={styles['tipKey']}>{t('requests')}</span>
-                                    <span className={styles['tipValue']}>{bucket.requests}</span>
-                                  </span>
-                                  <span className={`${styles['tipRow']} ${styles['tipSearches']}`}>
-                                    <span className={styles['tipKey']}>{t('tip.searches')}</span>
-                                    <span className={styles['tipValue']}>{bucket.searches}</span>
-                                  </span>
-                                </div>
-                              )
-                              : null}
                             {total > 0
                               ? (
                                 <div
                                   className={styles['stack']}
                                   style={{ height: `${fraction * 100}%`, animationDelay: `${index * 14}ms` }}
                                 >
-                                  {CATEGORIES.map(category => bucket[category.key] > 0
+                                  {/* Top-to-bottom: input miss (lightest) →
+                                   * cache hit (medium) → output (darkest). */}
+                                  {cacheMiss > 0
                                     ? (
                                       <span
-                                        key={category.key}
-                                        className={`${styles['seg']} ${category.className}`}
-                                        style={{ height: `${(bucket[category.key] / total) * 100}%` }}
+                                        className={`${styles['seg']} ${styles['catInput']}`}
+                                        style={{ height: `${(cacheMiss / total) * 100}%` }}
                                       />
                                     )
-                                    : null)}
+                                    : null}
+                                  {bucket.cacheRead > 0
+                                    ? (
+                                      <span
+                                        className={`${styles['seg']} ${styles['catCacheRead']}`}
+                                        style={{ height: `${(bucket.cacheRead / total) * 100}%` }}
+                                      />
+                                    )
+                                    : null}
+                                  {bucket.output > 0
+                                    ? (
+                                      <span
+                                        className={`${styles['seg']} ${styles['catOutput']}`}
+                                        style={{ height: `${(bucket.output / total) * 100}%` }}
+                                      />
+                                    )
+                                    : null}
                                 </div>
                               )
                               : <div className={styles['barEmpty']} />}
                           </div>
                         )
                       })}
+                      {hovered !== null && (() => {
+                        const bucket = chartBuckets.find(b => b.key === hovered)
+                        if (bucket === undefined) return null
+                        const index = chartBuckets.indexOf(bucket)
+                        const total = bucketTotal(bucket)
+                        const cacheMiss = bucket.input - bucket.cacheRead
+                        // The tooltip floats over the plot grid, anchored to
+                        // the hovered bar's center. Edge bars clamp to the
+                        // left/right so it never covers the y-axis or the
+                        // chart border.
+                        const midpoint = count > 0 ? ((index + 0.5) / count) * 100 : 50
+                        const tipStyle: Record<string, string> = { top: '4px' }
+                        if (midpoint < 25) {
+                          tipStyle.left = '4px'
+                          tipStyle.transform = 'none'
+                        } else if (midpoint > 75) {
+                          tipStyle.right = '4px'
+                          tipStyle.transform = 'none'
+                        } else {
+                          tipStyle.left = `${midpoint}%`
+                          tipStyle.transform = 'translateX(-50%)'
+                        }
+                        return (
+                          <div className={styles['tip']} style={tipStyle} role="tooltip">
+                            <div className={styles['tipHead']}>
+                              <span>{bucket.label}</span>
+                              <span>{formatFull(total)}</span>
+                            </div>
+                            {bucket.input - bucket.cacheRead > 0
+                              ? (
+                                <div className={styles['tipLine']}>
+                                  <span>
+                                    <span className={`${styles['tipSwatch']} ${styles['catInput']}`} />
+                                    {t('tip.input')}
+                                  </span>
+                                  <span>{formatFull(cacheMiss)}</span>
+                                </div>
+                              )
+                              : null}
+                            {bucket.cacheRead > 0
+                              ? (
+                                <div className={styles['tipLine']}>
+                                  <span>
+                                    <span className={`${styles['tipSwatch']} ${styles['catCacheRead']}`} />
+                                    {t('tip.input.cached')}
+                                  </span>
+                                  <span>{formatFull(bucket.cacheRead)}</span>
+                                </div>
+                              )
+                              : null}
+                            {bucket.output > 0
+                              ? (
+                                <div className={styles['tipLine']}>
+                                  <span>
+                                    <span className={`${styles['tipSwatch']} ${styles['catOutput']}`} />
+                                    {t('cat.output')}
+                                  </span>
+                                  <span>{formatFull(bucket.output)}</span>
+                                </div>
+                              )
+                              : null}
+                          </div>
+                        )
+                      })()}
                     </div>
                   </div>
                 </div>
-                <div className={styles['xAxis']}>
-                  <span>{first === undefined ? '' : dateLabel(first.date)}</span>
-                  <span>{last === undefined ? '' : dateLabel(last.date)}</span>
-                </div>
+                {(() => {
+                  const labels = isHourly ? hourAxisLabels() : dayAxisLabels(chartBuckets)
+                  return (
+                    <div className={`${styles['xAxis']} ${isHourly ? styles['xAxisHourly'] : ''} ${labels.length === 1 ? styles['xAxisSingle'] : ''}`}>
+                      {labels.map((label, i) => (
+                        <span key={i}>{label}</span>
+                      ))}
+                    </div>
+                  )
+                })()}
                 <div className={styles['legend']}>
-                  {CATEGORIES.map(category => (
-                    <span key={category.key} className={styles['legendKey']}>
-                      <span className={`${styles['dot']} ${category.className}`} />
-                      {t(category.labelKey)}
-                    </span>
-                  ))}
+                  <span className={styles['legendKey']}>
+                    <span className={`${styles['swatch']} ${styles['catInput']}`} />
+                    {t('tip.input')}
+                  </span>
+                  <span className={styles['legendKey']}>
+                    <span className={`${styles['swatch']} ${styles['catCacheRead']}`} />
+                    {t('tip.input.cached')}
+                  </span>
+                  <span className={styles['legendKey']}>
+                    <span className={`${styles['swatch']} ${styles['catOutput']}`} />
+                    {t('cat.output')}
+                  </span>
                 </div>
               </>
             )}

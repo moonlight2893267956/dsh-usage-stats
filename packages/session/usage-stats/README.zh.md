@@ -12,7 +12,7 @@
 
 把每个会话新增的持久化事件折叠进按天总量，返回从最早到今天共 `days` 天的窗口。每个桶是一个本地自然日：
 
-- `input` —— 未命中缓存的输入加 cache-write token（未被复用的提示侧）。
+- `input` —— 完整提示输入：未命中输入加缓存命中（含 `cacheRead`）。
 - `cacheRead` —— cache-read token（提示缓存命中——被复用的前缀）。
 - `output` —— 输出（补全）token。
 - `searches` —— 当天发起的 `web_search` 工具调用次数。
