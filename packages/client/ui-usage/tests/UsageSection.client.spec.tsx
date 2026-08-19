@@ -52,10 +52,12 @@ describe('UsageSection', () => {
     expect(screen.getAllByText('缓存命中')).toHaveLength(2)
     expect(screen.getAllByText('输出')).toHaveLength(2)
     expect(screen.getByText('每日 Tokens')).toBeTruthy()
-    // Range selector offers the three windows.
+    // Range selector offers the four windows; today is the active default.
+    expect(screen.getByRole('button', { name: '今天' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '7天' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '30天' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '90天' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '今天' }).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('reloads with the new window when a range button is clicked', async () => {
@@ -70,6 +72,33 @@ describe('UsageSection', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: '7天' })).toBeTruthy())
     fireEvent.click(screen.getByRole('button', { name: '7天' }))
     await waitFor(() => expect(requests).toContainEqual({ days: 7, models: [] }))
+  })
+
+  it('treats today as a one-day window', async () => {
+    const requests: UsageStatsRequest[] = []
+    const remote: UsageStatsRemote = {
+      stats: (request) => {
+        requests.push(request)
+        return Promise.resolve({ ok: true, value: { days: request.days, buckets: [day('2026-08-18', 5, 0, 1)], models: [] } })
+      },
+    }
+    render(<UsageSection {...injected(remote)} />)
+    // The section defaults to today, so its first load requests a 1-day window.
+    await waitFor(() => expect(requests).toContainEqual({ days: 1, models: [] }))
+  })
+
+  it('shows only today when today is the selected window', async () => {
+    const value: UsageStatsValue = {
+      days: 1,
+      buckets: [day('2026-08-18', 400, 120, 90, 3)],
+      models: [],
+    }
+    render(<UsageSection {...injected(remoteWith(value))} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: '今天' })).toBeTruthy())
+    // Today's totals cover the one-day window (summarized as a grand total).
+    expect(screen.getByText(/610 tokens · 3 次网络搜索/)).toBeTruthy()
+    expect(screen.getByText(/400/)).toBeTruthy()
+    expect(screen.getByText(/120/)).toBeTruthy()
   })
 
   it('shows the empty state when the window has no usage', async () => {
@@ -111,12 +140,13 @@ describe('UsageSection', () => {
     // (a fresh mount against the same controller) must reload rather than
     // resurface the old totals.
     const first = render(<UsageSection {...shared} />)
-    await waitFor(() => expect(screen.getByText(/100/)).toBeTruthy())
+    await waitFor(() => expect(screen.getAllByText(/100/).length).toBeGreaterThan(0))
     expect(calls).toBe(1)
     first.unmount()
     value = 250
     render(<UsageSection {...shared} />)
     await waitFor(() => expect(calls).toBeGreaterThan(1))
-    await waitFor(() => expect(screen.getByText(/250/)).toBeTruthy())
+    await waitFor(() => expect(screen.getAllByText(/250/).length).toBeGreaterThan(0))
+    expect(screen.queryAllByText(/100/)).toHaveLength(0)
   })
 })

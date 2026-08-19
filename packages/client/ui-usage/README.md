@@ -8,7 +8,7 @@ Usage settings section: a per-day token-usage dashboard backed by the `usageStat
 
 A `settings.section` entry (`id: 'usage'`, order 30) carrying the Usage page:
 
-- A summary line (total tokens and web searches over the window) and a 7d / 30d / 90d range selector.
+- A summary line (total tokens and web searches over the window) and a Today / 7d / 30d / 90d range selector (Today is the default and requests a one-day window).
 - One metric card per token category (input, cache read, output) with its window total.
 - A stacked bar chart of the per-day split with Y-axis gridlines, an X date axis, and a legend; hovering a day opens a tooltip with that day's exact figures. Edge days anchor the tooltip inward so it never clips the panel.
 

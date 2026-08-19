@@ -39,7 +39,7 @@ export interface UsageStatsState {
 export class UsageStatsStore {
   /** The snapshot the section renders from (uSES-safe store). */
   readonly store: SnapshotStore<UsageStatsState> = createSnapshotStore<UsageStatsState>({
-    status: 'idle', error: null, days: 30, buckets: [], availableModels: [], selectedModels: [],
+    status: 'idle', error: null, days: 1, buckets: [], availableModels: [], selectedModels: [],
   })
 
   /** Latest load wins; an older response never overwrites a newer one. */

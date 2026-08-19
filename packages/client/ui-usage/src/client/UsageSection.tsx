@@ -31,8 +31,8 @@ export interface UsageSectionInjected {
  */
 export type UsageSectionProps = Partial<UsageSectionInjected>
 
-/** Selectable window lengths, in days. */
-const RANGES = [7, 30, 90] as const
+/** Selectable window lengths, in days. `1` is today (the current calendar day). */
+const RANGES = [1, 7, 30, 90] as const
 
 /** Y-axis gridline count. */
 const TICKS = 4

@@ -46,7 +46,7 @@ describe('UsageStatsStore', () => {
     expect(snapshot.status).toBe('ready')
     expect(snapshot.error).toBeNull()
     expect(snapshot.buckets).toEqual([day('2026-08-18', 10, 5)])
-    expect(requests).toEqual([{ days: 30, models: [] }])
+    expect(requests).toEqual([{ days: 1, models: [] }])
   })
 
   it('surfaces a carrier failure without losing the last good buckets', async () => {
@@ -77,14 +77,15 @@ describe('UsageStatsStore', () => {
   it('reloads with the new window when it changes, and not when it is unchanged', async () => {
     const { remote, requests } = fakeRemote(request => Promise.resolve(ok(window(request.days, []))))
     const store = new UsageStatsStore(remote)
-    store.setDays(30)
+    // Today is the default window, so setting it again issues no request.
+    store.setDays(1)
     expect(requests).toEqual([])
-    store.setDays(7)
+    store.setDays(30)
     await Promise.resolve()
-    expect(store.store.getSnapshot().days).toBe(7)
+    expect(store.store.getSnapshot().days).toBe(30)
     store.setDays(90)
     await Promise.resolve()
-    expect(requests).toEqual([{ days: 7, models: [] }, { days: 90, models: [] }])
+    expect(requests).toEqual([{ days: 30, models: [] }, { days: 90, models: [] }])
   })
 
   it('ignores a stale response that resolves after a newer load started', async () => {
@@ -95,8 +96,8 @@ describe('UsageStatsStore', () => {
     const store = new UsageStatsStore(remote)
     void store.load()
     store.setDays(7)
-    // Resolve the newer (7d) load first, then the stale (30d) one; the stale
-    // response must not overwrite the newer snapshot.
+    // Resolve the newer (7d) load first, then the stale (1d today) one; the
+    // stale response must not overwrite the newer snapshot.
     resolvers[1]?.()
     await Promise.resolve()
     resolvers[0]?.()
