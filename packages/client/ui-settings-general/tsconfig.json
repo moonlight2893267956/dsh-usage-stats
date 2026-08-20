@@ -12,19 +12,10 @@
       "path": "../../../vendor/cordis"
     },
     {
-      "path": "../../api/remotes/tsconfig.client.json"
+      "path": "../ui-slots"
     },
     {
-      "path": "../../session/usage-stats"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
-    },
-    {
-      "path": "../../typert/protocol"
-    },
-    {
-      "path": "../locale"
+      "path": "../ui-primitives"
     },
     {
       "path": "../runtime"
@@ -33,10 +24,19 @@
       "path": "../ui-settings"
     },
     {
-      "path": "../ui-slots"
+      "path": "../locale"
     },
     {
-      "path": "../ui-renderer"
+      "path": "../../settings/settings"
+    },
+    {
+      "path": "../../runtime-diagnostics/invariants"
+    },
+    {
+      "path": "../../api/remotes/tsconfig.client.json"
+    },
+    {
+      "path": "../ui-sidebar"
     }
   ]
 }

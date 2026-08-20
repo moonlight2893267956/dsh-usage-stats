@@ -10,7 +10,7 @@ import { describe, expect, it, afterEach } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 afterEach(cleanup)
-import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-web-react'
+import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { UsageStatsDay, UsageStatsHour, UsageStatsRequest, UsageStatsValue } from '@deepseek-ai/dsh-usage-stats/types'
 import { UsageSection } from '../src/client/UsageSection.tsx'

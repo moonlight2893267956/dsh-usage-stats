@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-web-react'
+import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 import type { UsageStatsDay } from '@deepseek-ai/dsh-usage-stats/types'
 import type { UsageStatsState, UsageStatsStore } from './store.ts'
 import type { en } from './locales.ts'

@@ -28,6 +28,8 @@ wiring.patch                     应用进 monorepo 的 6 处接线改动（见�
 - **增量折叠**：`sessionPersistence.list()` 列出会话，`readFrom(id, cursor)` 只读新增事件，按 `event.time` 归入当天桶；`assistant/message.usage` 累加 token，`web_search` 工具调用计搜索数。
 - **统计口径**：输入 = `inputTokens + cacheReadTokens`（输入已含命中，合计 = 输入 + 输出，避免与缓存命中重复计），缓存命中 = `cacheReadTokens`，输出 = `outputTokens`。单天窗口（`days=1`）额外返回逐小时明细 `hours`（24 条），由 Client 的「今天」视图按小时渲染柱状图。
 - **Client 刷新**：`UsageSection` 每次挂载都重拉（不只在 `idle` 时），所以离开再进入「用量」页会显示最新数据，而不是首次访问的旧合计。
+- **窗口选项**：`[1, 7, 30]` 天（移除 90 天）。「今天」视图按 24 小时桶渲染，X 轴标签 `00:00`/`08:00`/`16:00`/`23:00`；多日视图按天渲染。
+- **导航图标**：设置页 Usage 导航使用 `IconChartOutline16`（柱状图 glyph），区别于 Models 的数据图标。
 
 ## 如何装进 deepseek-harness 跑起来
 
