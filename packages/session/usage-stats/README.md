@@ -22,7 +22,7 @@ The window length is clamped to `[1, 370]`; an unusable value defaults to 30.
 ### Fold semantics
 
 - The aggregate is **log-scoped, not surface-scoped**: tokens a later compaction hid from the model still count, because they were consumed.
-- The fold is **incremental**: each query folds only the events appended since the previous fold (a per-lifecycle seq cursor), so the first query after a restart backfills and later ones are cheap.
+- The fold is **incremental**: each query folds only the events appended since the previous fold (a per-lifecycle seq cursor), so the first query after a restart backfills and later ones are cheap. A per-lifecycle log revision skips sessions whose durable log did not advance since the last fold, so a warm query reads no unchanged log bytes at all.
 - A session deleted from the device keeps its contribution — its tokens were still consumed.
 - Only the durable log is read; a live session's unflushed tail (a few recent events) lags behind until it is written.
 

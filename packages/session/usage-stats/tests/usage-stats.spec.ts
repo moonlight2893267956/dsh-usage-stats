@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { CallId, createAssistantMessage, type TokenUsage } from '@deepseek-ai/dsh-llm'
 import { SESSION_FORMAT_VERSION, SessionId, type SessionEvent, type SessionHeader } from '@deepseek-ai/dsh-session'
+import { SessionPersistenceRevision, type SessionPersistenceSnapshot } from '@deepseek-ai/dsh-session-persistence'
 import UsageStatsService from '../src/index.ts'
 import type { UsageStatsDay, UsageStatsValue } from '../src/index.ts'
 
@@ -61,8 +62,17 @@ function otherToolEvent(time: number): SessionEvent {
 }
 
 function stubPersistence(sessions: StubSession[]): unknown {
+  // Revision tracks each session's event count, mirroring a real backend whose
+  // stat-derived revision (dev/ino/size/mtime/ctime) advances on every append
+  // and stays put while the log does not change.
+  const snapshots = (): SessionPersistenceSnapshot[] =>
+    sessions.map(session => ({
+      header: session.meta,
+      revision: SessionPersistenceRevision(`${session.meta.id}:${session.events.length}`),
+    }))
   return {
     list: () => Promise.resolve(sessions.map(session => session.meta)),
+    listSnapshots: () => Promise.resolve(snapshots()),
     readFrom: (id: SessionId, fromSeq: number) => {
       const session = sessions.find(candidate => candidate.meta.id === id)
       if (session === undefined) return Promise.reject(new Error(`unknown session '${id}'`))

@@ -12,6 +12,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
+import type { SessionPersistenceRevision } from '@deepseek-ai/dsh-session-persistence'
 // Type-only: pulls the `sessionPersistence` Context merge into this program.
 import type {} from '@deepseek-ai/dsh-session-persistence'
 import type { UsageStatsDay, UsageStatsHour, UsageStatsModelTotals, UsageStatsRequest, UsageStatsValue } from './types.ts'
@@ -96,7 +97,8 @@ function clampDays(days: number): number {
  * The `usageStats` Remote service. It keeps one in-memory aggregate fed by an
  * incremental scan of the durable logs: each query folds only the events
  * appended since the previous fold (a per-lifecycle seq cursor), so the first
- * query after a restart backfills and later ones are cheap.
+ * query after a restart backfills and later ones are cheap. A per-lifecycle
+ * file revision skips unaffected sessions without reading their log bytes.
  */
 export class UsageStatsService extends TypertRemoteService {
   static inject = ['sessionPersistence']
@@ -105,6 +107,8 @@ export class UsageStatsService extends TypertRemoteService {
   private readonly days = new Map<string, DayTotals>()
   /** Fold progress per session lifecycle (`<id>:<createdAt>` -> next unread seq). */
   private readonly cursors = new Map<string, number>()
+  /** Last folded log revision per session lifecycle, so a fold skips files the fold already saw. */
+  private readonly revisions = new Map<string, SessionPersistenceRevision>()
   /** Serialize folds so a live query never doubles a concurrent one. */
   private foldTail: Promise<void> = Promise.resolve()
 
@@ -134,10 +138,21 @@ export class UsageStatsService extends TypertRemoteService {
     return run
   }
 
-  /** Fold every session's newly durable events into the per-day totals. */
+  /**
+   * Fold every session's newly durable events into the per-day totals.
+   *
+   * Sessions whose log revision is unchanged since the last fold carry no new
+   * events, so they are skipped without a log read — this is the hot path for
+   * a warm query, where most durable logs have not advanced between calls.
+   * A session with no recorded revision (fresh lifecycle or first scan) folds
+   * from seq 0, preserving the cold backfill semantics.
+   */
   private async foldAll(): Promise<void> {
-    for (const header of await this.ctx.sessionPersistence.list()) {
+    for (const { header, revision } of await this.ctx.sessionPersistence.listSnapshots()) {
       const key = `${header.id}:${header.createdAt}`
+      // The revision identity covers the whole log, so an unchanged revision
+      // means the cursor is already at the durable tail — no bytes to fold.
+      if (this.revisions.get(key) === revision) continue
       const fromSeq = this.cursors.get(key) ?? 0
       const { events } = await this.ctx.sessionPersistence.readFrom(header.id, fromSeq)
       let next = fromSeq
@@ -146,6 +161,7 @@ export class UsageStatsService extends TypertRemoteService {
         next += 1
       }
       this.cursors.set(key, next)
+      this.revisions.set(key, revision)
     }
   }
 
