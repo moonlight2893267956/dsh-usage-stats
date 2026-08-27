@@ -20,7 +20,10 @@ import styles from '../src/client/UsageSection.module.css'
 
 const t = (key: keyof typeof zh): string => zh[key]
 
-function day(date: string, input: number, cacheRead: number, output: number, searches = 0, requests = 0, hours?: UsageStatsHour[]): UsageStatsDay {
+function day(
+  date: string, input: number, cacheRead: number, output: number,
+  searches = 0, requests = 0, hours?: UsageStatsHour[],
+): UsageStatsDay {
   return { date, input, cacheRead, output, searches, requests, models: {}, ...(hours !== undefined ? { hours } : {}) }
 }
 

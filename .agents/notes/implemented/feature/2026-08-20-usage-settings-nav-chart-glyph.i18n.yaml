@@ -3,4 +3,4 @@
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-20-usage-settings-nav-chart-glyph.md
 2026-08-20-usage-settings-nav-chart-glyph.md: f55604e7b2e0d1cfa3bebb8d576cfa3e965741c3
-2026-08-20-usage-settings-nav-chart-glyph.zh.md: 751122d69a33dee1a312e7961c21840dcc70a1ce
+2026-08-20-usage-settings-nav-chart-glyph.zh.md: 0bba0f35712ae1e7ec97ac47abcd9803f07dd1e8

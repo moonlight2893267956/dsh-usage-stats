@@ -2,7 +2,7 @@
 
 Status: implemented
 
-English | [中文](2026-08-20-usage-settings-nav-chart-glyph.zh.md)
+[English](2026-08-20-usage-settings-nav-chart-glyph.md) | 中文
 
 ## 问题
 

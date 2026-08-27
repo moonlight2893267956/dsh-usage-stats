@@ -171,7 +171,8 @@ export class UsageStatsService extends TypertRemoteService {
       const usage = event.data.usage
       if (usage === undefined) return
       const day = this.day(event.time)
-      const hour = day.hours[new Date(event.time).getHours()]!
+      const hour = day.hours[new Date(event.time).getHours()]
+      if (hour === undefined) return
       // input = full prompt input (uncached + cache-read hits); cacheWrite is
       // excluded so `input + cacheRead` never double-counts (input already
       // contains cacheRead). cacheRead is also kept separately for the
@@ -203,7 +204,8 @@ export class UsageStatsService extends TypertRemoteService {
     } else if (event.type === 'tool/call' && event.data.name === 'web_search') {
       const day = this.day(event.time)
       day.searches += 1
-      day.hours[new Date(event.time).getHours()]!.searches += 1
+      const searchHour = day.hours[new Date(event.time).getHours()]
+      if (searchHour !== undefined) searchHour.searches += 1
     }
   }
 
