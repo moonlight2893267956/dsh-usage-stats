@@ -4,6 +4,23 @@
 
 > **仓库定位**：这是该插件的**源码归档（source of record）仓库**。它由 deepseek-harness monorepo 内两个 `@deepseek-ai/*` 工作区包组成，**不在此仓库独立构建/独立发布**。要在实际环境里运行，把它拷进 `deepseek-harness` 仓库并应用接线改动即可（见下）。
 
+> **版本基线**：本仓库已适配 **DeepSeek Harness `dsh-0.1.2-alpha.1`** 的 client 架构（见「兼容最新版 dsh」一节）。拷贝进 harness 时请确认目标 harness 在 `dsh-0.1.2-alpha.1` 或更新的 alpha 版本上，否则 client 端无法解析 alpha.1 的依赖。
+
+## 兼容最新版 dsh（alpha.1）
+
+alpha.1 把 client 侧插件统一到 **store-in-register + `InjectFace`/`hooks.snapshot`**，并**禁止** `dsh.client.external` 与跨插件 runtime-import。本仓库的两个包已按此适配：
+
+- Host `usage-stats`：仅测试用 `CallId` → `ToolCallId`（`@deepseek-ai/dsh-llm` 在 alpha.1 更名）；`src/index.ts` 的 hour 桶访问用 `?? emptyHour()` 消除非空断言即满足 lint。
+- Client `ui-usage`：
+  - `ClientContext` 源头 `@deepseek-ai/dsh-client-runtime/client` → `@deepseek-ai/cordis`。
+  - `SnapshotStore` / `createSnapshotStore` 源头 `dsh-client-runtime/client` → `@deepseek-ai/dsh-client-store`。
+  - 去掉 `dsh.client.external`（`@deepseek-ai/dsh-client-ui-renderer/client`），改为仅 `import type` 拉 `ctx.slots` merge。
+  - 去掉 `bindSnapshotSelector`，改用 `InjectFace` 的 `hooks.snapshot`（renderer 绑定为 `useSnapshot`）。
+  - 文案保持 locale-owned：section 注册带 `locale: NS`，用 `ctx.locale.bind(NS)` 的 `t`。
+  - 测试用 `bindSnapshotSelector` 改自 `@deepseek-ai/dsh-client-test-runtime`。
+
+**构建前提**：alpha.1 的 client tsdown bundle 需要在 **Node `^22.19 || >=24`** 上构建（`REPOSITORY_ROOT` 经 `unrun` 转译后按 `import.meta.url` 算错）。若目标 harness 未带该修复，需先应用 tsdown.client.ts 的 `REPOSITORY_ROOT` 查找修复并 `pnpm add -Dw unrun@0.3.1`（见 harness 侧同一改动）。
+
 ## 目录结构
 
 ```

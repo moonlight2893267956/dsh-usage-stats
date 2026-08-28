@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId, createAssistantMessage, type TokenUsage } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, createAssistantMessage, type TokenUsage } from '@deepseek-ai/dsh-llm'
 import { SESSION_FORMAT_VERSION, SessionId, type SessionEvent, type SessionHeader } from '@deepseek-ai/dsh-session'
 import { SessionPersistenceRevision, type SessionPersistenceSnapshot } from '@deepseek-ai/dsh-session-persistence'
 import UsageStatsService from '../src/index.ts'
@@ -55,10 +55,10 @@ function bareMessageEvent(time: number): SessionEvent {
   return { type: 'assistant/message', seq: seq++, time, data: { turn: 1, step: 1, message: MESSAGE } }
 }
 function searchEvent(time: number): SessionEvent {
-  return { type: 'tool/call', seq: seq++, time, data: { turn: 1, step: 1, callId: CallId(`call-${seq}`), name: 'web_search', arguments: '{}' } }
+  return { type: 'tool/call', seq: seq++, time, data: { turn: 1, step: 1, callId: ToolCallId(`call-${seq}`), name: 'web_search', arguments: '{}' } }
 }
 function otherToolEvent(time: number): SessionEvent {
-  return { type: 'tool/call', seq: seq++, time, data: { turn: 1, step: 1, callId: CallId(`call-${seq}`), name: 'read', arguments: '{}' } }
+  return { type: 'tool/call', seq: seq++, time, data: { turn: 1, step: 1, callId: ToolCallId(`call-${seq}`), name: 'read', arguments: '{}' } }
 }
 
 function stubPersistence(sessions: StubSession[]): unknown {

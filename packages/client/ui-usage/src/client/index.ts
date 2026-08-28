@@ -6,12 +6,13 @@
  * @module @deepseek-ai/dsh-client-ui-usage/client
  */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the shell's SlotMap merge (the 'settings.section' entry).
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+// Type-only: pulls the UI renderer's slots service merge (ctx.slots).
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the generated Remote API and ctx.remote merge through the Client assembly boundary.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { UsageStatsStore } from './store.ts'
@@ -38,17 +39,23 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-usage: dictionaries')
 
   const controller = new UsageStatsStore(ctx.remote.usageStats)
-  const useSnapshot = bindSnapshotSelector(controller.store)
   // Registration-time text (the nav label thunk) and the inject face share one
-  // bound translate; copy freshness rides the locale revision.
+  // bound translate; copy freshness rides the locale revision. The section
+  // snapshot rides the UI renderer's `hooks` binding (the renderer delivers it
+  // to the component as `useSnapshot`); the controller carries the verbs.
   const t = ctx.locale.bind(NS) as UsageSectionInjected['t']
-  const injected = (): UsageSectionInjected => ({ controller, useSnapshot, t })
+  const injected = (): UsageSectionInjected => ({
+    controller,
+    hooks: { snapshot: controller.store },
+    t,
+  })
 
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',
     id: 'usage',
     order: 30,
     label: () => t('nav'),
+    locale: NS,
     inject: injected,
   }, UsageSection))
 }

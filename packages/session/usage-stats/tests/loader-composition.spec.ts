@@ -8,7 +8,7 @@ import Include from '@deepseek-ai/cordis-plugin-include'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
-import { CallId, createAssistantMessage } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, createAssistantMessage } from '@deepseek-ai/dsh-llm'
 import UsageStatsService from '../src/index.ts'
 import type { UsageStatsValue } from '../src/index.ts'
 
@@ -95,7 +95,7 @@ describe('usage-stats through a real Loader composition', () => {
     session.append('tool/call', {
       turn: 1,
       step: 1,
-      callId: CallId('call-1'),
+      callId: ToolCallId('call-1'),
       name: 'web_search',
       arguments: '{}',
     })

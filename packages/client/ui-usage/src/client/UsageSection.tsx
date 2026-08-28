@@ -8,9 +8,9 @@
 
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
+import type { InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import type { UsageStatsDay } from '@deepseek-ai/dsh-usage-stats/types'
-import type { UsageStatsState, UsageStatsStore } from './store.ts'
+import type { UsageStatsStore } from './store.ts'
 import type { en } from './locales.ts'
 import styles from './UsageSection.module.css'
 import { ModelFilter } from './ModelFilter.tsx'
@@ -19,17 +19,20 @@ import { ModelFilter } from './ModelFilter.tsx'
 export interface UsageSectionInjected {
   /** The page store (loaded on mount and on window change). */
   controller: UsageStatsStore
-  /** uSES subscription hook bound to the store. */
-  useSnapshot: SnapshotSelectorHook<UsageStatsState>
+  /** Section snapshot, bound by the UI renderer as `useSnapshot`. */
+  hooks: {
+    snapshot: UsageStatsStore['store']
+  }
   /** Section copy. */
   t: (key: keyof typeof en) => string
 }
 
 /**
  * Props delivered by the slot outlet: the inject face spread flat (the
- * renderer erases the share boundary at the render call).
+ * renderer erases the share boundary at the render call). `useSnapshot` is
+ * bound by the renderer from the injected `hooks.snapshot`.
  */
-export type UsageSectionProps = Partial<UsageSectionInjected>
+export type UsageSectionProps = Partial<InjectFace<UsageSectionInjected>>
 
 /** Selectable window lengths, in days. `1` is today (the current calendar day). */
 const RANGES = [1, 7, 30] as const
@@ -136,7 +139,9 @@ export function UsageSection(props: UsageSectionProps): ReactNode {
   return <Loaded injected={{ controller, useSnapshot, t }} />
 }
 
-function Loaded({ injected }: { injected: UsageSectionInjected }): ReactNode {
+type UsageSectionFace = InjectFace<UsageSectionInjected>
+
+function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
   const { controller, t } = injected
   const state = injected.useSnapshot(snapshot => snapshot)
   const [hovered, setHovered] = useState<string | null>(null)
