@@ -148,14 +148,31 @@ export class UsageStatsService extends TypertRemoteService {
    * from seq 0, preserving the cold backfill semantics.
    */
   private async foldAll(): Promise<void> {
-    for (const { header, revision } of await this.ctx.sessionPersistence.listSnapshots()) {
+    for (const { header, revision } of await this.ctx.sessionPersistence.list()) {
       const key = `${header.id}:${header.createdAt}`
       // The revision identity covers the whole log, so an unchanged revision
       // means the cursor is already at the durable tail — no bytes to fold.
       if (this.revisions.get(key) === revision) continue
       const fromSeq = this.cursors.get(key) ?? 0
-      const { events } = await this.ctx.sessionPersistence.readFrom(header.id, fromSeq)
-      let next = fromSeq
+      let events: readonly SessionEvent[]
+      let foldFrom = fromSeq
+      try {
+        const reader = await this.ctx.sessionPersistence.open(header.id, 'read')
+        try {
+          // Fork-inherited events replay the parent log inside this session; skip
+          // them so a forked child never double-counts the tokens its parent
+          // already folded. Never rewind below the live fold cursor.
+          foldFrom = Math.max(fromSeq, reader.inheritedEventCount)
+          events = await reader.read(foldFrom)
+        } finally {
+          await reader.close()
+        }
+      } catch (error: unknown) {
+        this.ctx.logger.warn(`usage-stats: skipped session "${header.id}" because its log could not be read: ${String(error)}`)
+        this.revisions.set(key, revision)
+        continue
+      }
+      let next = foldFrom
       for (const event of events) {
         this.foldEvent(event)
         next += 1
@@ -167,12 +184,15 @@ export class UsageStatsService extends TypertRemoteService {
 
   /** Add one event's contribution to its day bucket. */
   private foldEvent(event: SessionEvent): void {
+    // Each day bucket always materializes all 24 hour buckets, so this index is
+    // in range; a `?? initializer` satisfies the indexed-access type without a
+    // non-null assertion.
+    const hourOfDay = new Date(event.time).getHours()
     if (event.type === 'assistant/message') {
       const usage = event.data.usage
       if (usage === undefined) return
       const day = this.day(event.time)
-      const hour = day.hours[new Date(event.time).getHours()]
-      if (hour === undefined) return
+      const hour = day.hours[hourOfDay] ?? (day.hours[hourOfDay] = emptyHour())
       // input = full prompt input (uncached + cache-read hits); cacheWrite is
       // excluded so `input + cacheRead` never double-counts (input already
       // contains cacheRead). cacheRead is also kept separately for the
@@ -204,8 +224,8 @@ export class UsageStatsService extends TypertRemoteService {
     } else if (event.type === 'tool/call' && event.data.name === 'web_search') {
       const day = this.day(event.time)
       day.searches += 1
-      const searchHour = day.hours[new Date(event.time).getHours()]
-      if (searchHour !== undefined) searchHour.searches += 1
+      const hour = day.hours[hourOfDay] ?? (day.hours[hourOfDay] = emptyHour())
+      hour.searches += 1
     }
   }
 

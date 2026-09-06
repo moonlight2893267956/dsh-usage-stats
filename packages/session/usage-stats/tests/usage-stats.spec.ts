@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId, createAssistantMessage, type TokenUsage } from '@deepseek-ai/dsh-llm'
-import { SESSION_FORMAT_VERSION, SessionId, type SessionEvent, type SessionHeader } from '@deepseek-ai/dsh-session'
+import { ToolCallId, createAssistantMessage, type TokenUsage } from '@deepseek-ai/dsh-llm'
+import { SESSION_FORMAT_VERSION, SessionId, SessionSeq, type SessionEvent, type SessionHeader } from '@deepseek-ai/dsh-session'
 import { SessionPersistenceRevision, type SessionPersistenceSnapshot } from '@deepseek-ai/dsh-session-persistence'
 import UsageStatsService from '../src/index.ts'
 import type { UsageStatsDay, UsageStatsValue } from '../src/index.ts'
@@ -14,10 +14,11 @@ const MESSAGE = createAssistantMessage({
 interface StubSession {
   meta: SessionHeader
   events: SessionEvent[]
+  readError?: Error
 }
 
 function header(id: string, createdAt = 1): SessionHeader {
-  return { version: SESSION_FORMAT_VERSION, id: SessionId(id), createdAt, delegationDepth: 0 }
+  return { version: SESSION_FORMAT_VERSION, id: SessionId(id), createdAt, isSeeded: false, delegationDepth: 0 }
 }
 
 /** Noon on the local calendar day `offsetDays` before today (avoids day-boundary flakiness). */
@@ -49,16 +50,16 @@ function usageEvent(time: number, usage: TokenUsage, model = 'test'): SessionEve
     content: [{ type: 'text', text: 'answer' }],
     source: { provider: 'test', model },
   })
-  return { type: 'assistant/message', seq: seq++, time, data: { turn: 1, step: 1, message, usage } }
+  return { type: 'assistant/message', seq: SessionSeq(seq++), time, data: { turn: 1, step: 1, message, usage } }
 }
 function bareMessageEvent(time: number): SessionEvent {
-  return { type: 'assistant/message', seq: seq++, time, data: { turn: 1, step: 1, message: MESSAGE } }
+  return { type: 'assistant/message', seq: SessionSeq(seq++), time, data: { turn: 1, step: 1, message: MESSAGE } }
 }
 function searchEvent(time: number): SessionEvent {
-  return { type: 'tool/call', seq: seq++, time, data: { turn: 1, step: 1, callId: CallId(`call-${seq}`), name: 'web_search', arguments: '{}' } }
+  return { type: 'tool/call', seq: SessionSeq(seq++), time, data: { turn: 1, step: 1, callId: ToolCallId(`call-${seq}`), name: 'web_search', arguments: '{}' } }
 }
 function otherToolEvent(time: number): SessionEvent {
-  return { type: 'tool/call', seq: seq++, time, data: { turn: 1, step: 1, callId: CallId(`call-${seq}`), name: 'read', arguments: '{}' } }
+  return { type: 'tool/call', seq: SessionSeq(seq++), time, data: { turn: 1, step: 1, callId: ToolCallId(`call-${seq}`), name: 'read', arguments: '{}' } }
 }
 
 function stubPersistence(sessions: StubSession[]): unknown {
@@ -71,14 +72,19 @@ function stubPersistence(sessions: StubSession[]): unknown {
       revision: SessionPersistenceRevision(`${session.meta.id}:${session.events.length}`),
     }))
   return {
-    list: () => Promise.resolve(sessions.map(session => session.meta)),
-    listSnapshots: () => Promise.resolve(snapshots()),
-    readFrom: (id: SessionId, fromSeq: number) => {
+    list: () => Promise.resolve(snapshots()),
+    open: (id: SessionId, access: 'read' | 'write') => {
+      expect(access).toBe('read')
       const session = sessions.find(candidate => candidate.meta.id === id)
       if (session === undefined) return Promise.reject(new Error(`unknown session '${id}'`))
-      // A real log is contiguous (`events[i].seq === i`), so readFrom returns the
-      // positional suffix; the service advances its cursor by the count it read.
-      return Promise.resolve({ meta: session.meta, events: session.events.slice(fromSeq) })
+      if (session.readError !== undefined) return Promise.reject(session.readError)
+      return Promise.resolve({
+        // Mirror the real SessionHandle contract: the handle always carries the
+        // exact fork-inherited prefix length (0 for an unseeded session).
+        inheritedEventCount: 0,
+        read: (offset = 0) => Promise.resolve(session.events.slice(offset)),
+        close: () => Promise.resolve(),
+      })
     },
   }
 }
@@ -166,6 +172,33 @@ describe('UsageStatsService', () => {
       const second = await ctx.usageStats.stats({ days: 7 })
       expect(bucketFor(second, 0)).toMatchObject({ input: 15, output: 3, requests: 2, searches: 1 })
     } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('skips unreadable session logs while aggregating readable sessions', async () => {
+    const ctx = await mount([
+      {
+        meta: header('corrupt'),
+        events: [],
+        readError: new Error('corrupt session log: seq gap in committed region at line 5 (expected 4, got 3)'),
+      },
+      {
+        meta: header('readable'),
+        events: [usageEvent(dayTime(0), { inputTokens: 13, outputTokens: 7 }), searchEvent(dayTime(0))],
+      },
+    ])
+    const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => undefined)
+    try {
+      const value = await ctx.usageStats.stats({ days: 7 })
+      expect(bucketFor(value, 0)).toMatchObject({ input: 13, output: 7, requests: 1, searches: 1 })
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('usage-stats: skipped session "corrupt"'))
+
+      await ctx.usageStats.stats({ days: 7 })
+      expect(warn).toHaveBeenCalledTimes(1)
+    } finally {
+      warn.mockRestore()
       await ctx.fiber.dispose()
     }
   })

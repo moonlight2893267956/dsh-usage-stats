@@ -8,7 +8,7 @@ import Include from '@deepseek-ai/cordis-plugin-include'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
-import { CallId, createAssistantMessage } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, createAssistantMessage } from '@deepseek-ai/dsh-llm'
 import UsageStatsService from '../src/index.ts'
 import type { UsageStatsValue } from '../src/index.ts'
 
@@ -63,6 +63,15 @@ function bucketFor(value: UsageStatsValue, date: string) {
   return value.buckets.find(candidate => candidate.date === date)
 }
 
+async function readStoredEventCount(ctx: Context, id: SessionId): Promise<number> {
+  const reader = await ctx.sessionPersistence.open(id, 'read')
+  try {
+    return (await reader.read()).length
+  } finally {
+    await reader.close()
+  }
+}
+
 describe('usage-stats through a real Loader composition', () => {
   it('serves per-day usage folded from the durable log and re-derives it after a restart', async () => {
     root = await mkdtemp(join(tmpdir(), 'dsh-usage-stats-loader-'))
@@ -82,6 +91,7 @@ describe('usage-stats through a real Loader composition', () => {
     expect(first.usageStats.typertRemote.namespace).toBe('usageStats')
 
     const session = first.sessions.create(SessionId('loader-usage'), { meta: { cwd: root } })
+    const writer = await first.sessionPersistence.create(session.header)
     const message = createAssistantMessage({
       content: [{ type: 'text', text: 'answer' }],
       source: { provider: 'test', model: 'test' },
@@ -95,14 +105,14 @@ describe('usage-stats through a real Loader composition', () => {
     session.append('tool/call', {
       turn: 1,
       step: 1,
-      callId: CallId('call-1'),
+      callId: ToolCallId('call-1'),
       name: 'web_search',
       arguments: '{}',
     })
     // Force the batched writes to the durable log before the fold reads them.
     await first.sessions.flush(session)
-    const durable = await first.sessionPersistence.readFrom(session.id, 0)
-    expect(durable.events).toHaveLength(2)
+    await writer.close()
+    await expect(readStoredEventCount(first, session.id)).resolves.toBe(2)
 
     const value = await first.usageStats.stats({ days: 30 })
     expect(bucketFor(value, todayKey())).toMatchObject({ input: 150, output: 20, cacheRead: 50, searches: 1 })
