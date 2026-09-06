@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-usage-stats",
   "description": "Cross-session per-day token-usage statistics folded from the durable session logs, served to clients over a Typert Remote",
-  "version": "0.1.0-rc.7",
+  "version": "0.1.2-alpha.1",
   "publishConfig": {
     "access": "public"
   },

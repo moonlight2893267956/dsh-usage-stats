@@ -10,7 +10,7 @@ import { describe, expect, it, afterEach } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 afterEach(cleanup)
-import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-ui-renderer/client'
+import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { UsageStatsDay, UsageStatsHour, UsageStatsRequest, UsageStatsValue } from '@deepseek-ai/dsh-usage-stats/types'
 import { UsageSection } from '../src/client/UsageSection.tsx'
@@ -21,8 +21,13 @@ import styles from '../src/client/UsageSection.module.css'
 const t = (key: keyof typeof zh): string => zh[key]
 
 function day(
-  date: string, input: number, cacheRead: number, output: number,
-  searches = 0, requests = 0, hours?: UsageStatsHour[],
+  date: string,
+  input: number,
+  cacheRead: number,
+  output: number,
+  searches = 0,
+  requests = 0,
+  hours?: UsageStatsHour[],
 ): UsageStatsDay {
   return { date, input, cacheRead, output, searches, requests, models: {}, ...(hours !== undefined ? { hours } : {}) }
 }
