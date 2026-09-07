@@ -27,6 +27,9 @@
       "path": "../session-persistence"
     },
     {
+      "path": "../../storage/storage-domain"
+    },
+    {
       "path": "../../typert/protocol"
     }
   ]

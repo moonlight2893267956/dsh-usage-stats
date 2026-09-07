@@ -1,8 +1,18 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, afterEach } from 'vitest'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { createAssistantMessage, type TokenUsage } from '@deepseek-ai/dsh-llm'
 import { SESSION_FORMAT_VERSION, SessionId, SessionSeq, type SessionEvent, type SessionHeader } from '@deepseek-ai/dsh-session'
 import { SessionPersistenceRevision, type SessionPersistenceSnapshot } from '@deepseek-ai/dsh-session-persistence'
+import Storage from '@deepseek-ai/dsh-storage'
+import {
+  apply as storageJsonApply, Config as storageJsonConfig, inject as storageJsonInject, name as storageJsonName,
+} from '@deepseek-ai/dsh-storage-json'
+import {
+  apply as storageDomainApply, Config as storageDomainConfig, inject as storageDomainInject, name as storageDomainName,
+} from '@deepseek-ai/dsh-storage-domain'
 import UsageStatsService from '../src/index.ts'
 import type { UsageStatsDay, UsageStatsValue } from '../src/index.ts'
 
@@ -40,7 +50,7 @@ function dayKey(offsetDays: number): string {
 
 /** One assistant/message event with seq and usage, at the given time. */
 function usageEvent(seq: number, time: number, usage: TokenUsage): SessionEvent {
-  return { type: 'assistant/message', seq: SessionSeq(seq), time, data: { turn: 1, step: 1, message: MESSAGE, usage } }
+  return { type: 'assistant/message', seq: SessionSeq(seq), time, data: { turn: 1, step: 1, message: MESSAGE, stream: [], usage } }
 }
 
 function stubPersistence(sessions: StubSession[]): unknown {
@@ -68,9 +78,23 @@ function stubPersistence(sessions: StubSession[]): unknown {
   }
 }
 
+const roots: string[] = []
+
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+})
+
 async function mount(sessions: StubSession[]): Promise<Context> {
+  const root = await mkdtemp(join(tmpdir(), 'dsh-usage-stats-'))
+  roots.push(root)
   const ctx = new Context()
   ctx.provide('sessionPersistence', stubPersistence(sessions))
+  await ctx.plugin(Storage)
+  await ctx.plugin({ name: storageJsonName, inject: storageJsonInject, apply: storageJsonApply, Config: storageJsonConfig }, { root })
+  await ctx.plugin(
+    { name: storageDomainName, inject: storageDomainInject, apply: storageDomainApply, Config: storageDomainConfig },
+    { backend: 'json' },
+  )
   await ctx.plugin(UsageStatsService)
   return ctx
 }

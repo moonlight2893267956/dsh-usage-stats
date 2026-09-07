@@ -9,15 +9,20 @@
  * @module @deepseek-ai/dsh-usage-stats
  */
 
-import type { Context } from '@deepseek-ai/cordis'
+import { Service, type Context } from '@deepseek-ai/cordis'
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
-import type { SessionPersistenceRevision } from '@deepseek-ai/dsh-session-persistence'
+import { SessionPersistenceRevision } from '@deepseek-ai/dsh-session-persistence'
+import type { DomainGlobal } from '@deepseek-ai/dsh-storage-domain'
 // Type-only: pulls the `sessionPersistence` Context merge into this program.
 import type {} from '@deepseek-ai/dsh-session-persistence'
+import { usageStatsDomainSpec } from './spec.ts'
+import type { UsageStatsCheckpoint, UsageStatsSession } from './spec.ts'
 import type { UsageStatsDay, UsageStatsHour, UsageStatsModelTotals, UsageStatsRequest, UsageStatsValue } from './types.ts'
 
 export type * from './types.ts'
+export { usageStatsDomainSpec } from './spec.ts'
+export type { UsageStatsCheckpoint, UsageStatsSession } from './spec.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -93,30 +98,98 @@ function clampDays(days: number): number {
   return Math.max(1, Math.min(MAX_DAYS, value))
 }
 
+/** Serialize one in-memory day bucket into its persisted JSON shape (Map → plain object). */
+function persistDay(day: DayTotals): UsageStatsCheckpoint['days'][string] {
+  return {
+    input: day.input,
+    cacheRead: day.cacheRead,
+    output: day.output,
+    requests: day.requests,
+    searches: day.searches,
+    models: Object.fromEntries(day.models),
+    hours: day.hours.map(hour => ({
+      input: hour.input,
+      cacheRead: hour.cacheRead,
+      output: hour.output,
+      requests: hour.requests,
+      searches: hour.searches,
+      models: Object.fromEntries(hour.models),
+    })),
+  }
+}
+
+/** Rebuild one in-memory day bucket from its persisted JSON shape (plain object → Map). */
+function restoreDay(persisted: UsageStatsCheckpoint['days'][string]): DayTotals {
+  return {
+    input: persisted.input,
+    cacheRead: persisted.cacheRead,
+    output: persisted.output,
+    requests: persisted.requests,
+    searches: persisted.searches,
+    models: new Map(Object.entries(persisted.models)),
+    hours: persisted.hours.map(hour => ({
+      input: hour.input,
+      cacheRead: hour.cacheRead,
+      output: hour.output,
+      requests: hour.requests,
+      searches: hour.searches,
+      models: new Map(Object.entries(hour.models)),
+    })),
+  }
+}
+
 /**
  * The `usageStats` Remote service. It keeps one in-memory aggregate fed by an
  * incremental scan of the durable logs: each query folds only the events
  * appended since the previous fold (a per-lifecycle seq cursor), so the first
  * query after a restart backfills and later ones are cheap. A per-lifecycle
  * file revision skips unaffected sessions without reading their log bytes.
+ *
+ * The aggregate is checkpointed into the `usage_stats` storage domain: after
+ * a restart (or a repeat visit in a new process), the persisted totals and
+ * per-session fold progress seed the in-memory accumulator, so a warm start
+ * folds only the deltas instead of rescanning every durable log. The in-memory
+ * maps stay authoritative within one process (the hot path); SQLite serves
+ * restarts and repeated visits. The checkpoint is derived, never an authority:
+ * a lost or stale record only costs a longer tail replay on the next cold read.
  */
 export class UsageStatsService extends TypertRemoteService {
-  static inject = ['sessionPersistence']
+  static inject = ['sessionPersistence', 'storageDomain']
 
   /** Per-day totals keyed by local day. */
-  private readonly days = new Map<string, DayTotals>()
+  private days = new Map<string, DayTotals>()
   /** Fold progress per session lifecycle (`<id>:<createdAt>` -> next unread seq). */
-  private readonly cursors = new Map<string, number>()
-  /** Last folded log revision per session lifecycle, so a fold skips files the fold already saw. */
-  private readonly revisions = new Map<string, SessionPersistenceRevision>()
+  private cursors = new Map<string, number>()
+  /** Last attempted log revision per session lifecycle (readable AND unreadable), so a fold skips files the fold already saw. */
+  private revisions = new Map<string, SessionPersistenceRevision>()
+  /** Lifecycle keys whose log could not be read this process; never persisted. */
+  private readonly unreadable = new Set<string>()
   /** Serialize folds so a live query never doubles a concurrent one. */
   private foldTail: Promise<void> = Promise.resolve()
+  private checkpoint?: DomainGlobal<UsageStatsCheckpoint>
 
   /**
-   * @param ctx - Host context carrying session persistence.
+   * @param ctx - Host context carrying session persistence and the storage domain form.
    */
   constructor(ctx: Context) {
     super(ctx, 'usageStats')
+  }
+
+  /**
+   * Open the checkpoint domain and seed the in-memory accumulator from the
+   * persisted state. A cold start (no checkpoint) seeds empty maps, so the
+   * first query backfills from the logs exactly as before.
+   */
+  protected async [Service.init](): Promise<void> {
+    const domain = await this.ctx.storageDomain.open(usageStatsDomainSpec)
+    this.ctx.effect(() => () => domain.close(), 'usageStats.domainClose')
+    this.checkpoint = domain.global
+    const persisted = this.checkpoint.get()
+    this.days = new Map(Object.entries(persisted.days).map(([key, day]) => [key, restoreDay(day)]))
+    for (const [key, session] of Object.entries(persisted.sessions)) {
+      this.cursors.set(key, session.cursor)
+      this.revisions.set(key, SessionPersistenceRevision(session.revision))
+    }
   }
 
   /**
@@ -139,15 +212,20 @@ export class UsageStatsService extends TypertRemoteService {
   }
 
   /**
-   * Fold every session's newly durable events into the per-day totals.
+   * Fold every session's newly durable events into the per-day totals, then
+   * write back the checkpoint when anything changed.
    *
    * Sessions whose log revision is unchanged since the last fold carry no new
    * events, so they are skipped without a log read — this is the hot path for
-   * a warm query, where most durable logs have not advanced between calls.
-   * A session with no recorded revision (fresh lifecycle or first scan) folds
-   * from seq 0, preserving the cold backfill semantics.
+   * a warm query, where most durable logs have not advanced between calls. A
+   * session with no recorded revision (fresh lifecycle, a fresh process cold
+   * start, or a log the checkpoint never advanced past) folds from seq 0,
+   * preserving the cold backfill semantics. An unreadable log warns, skips,
+   * and records its revision only in memory (never in the checkpoint), so a
+   * corrupt session is re-attempted — and re-warned — on the next restart.
    */
   private async foldAll(): Promise<void> {
+    let changed = false
     for (const { header, revision } of await this.ctx.sessionPersistence.list()) {
       const key = `${header.id}:${header.createdAt}`
       // The revision identity covers the whole log, so an unchanged revision
@@ -170,6 +248,7 @@ export class UsageStatsService extends TypertRemoteService {
       } catch (error: unknown) {
         this.ctx.logger.warn(`usage-stats: skipped session "${header.id}" because its log could not be read: ${String(error)}`)
         this.revisions.set(key, revision)
+        this.unreadable.add(key)
         continue
       }
       let next = foldFrom
@@ -179,7 +258,28 @@ export class UsageStatsService extends TypertRemoteService {
       }
       this.cursors.set(key, next)
       this.revisions.set(key, revision)
+      this.unreadable.delete(key)
+      changed = true
     }
+    if (changed) await this.persistCheckpoint()
+  }
+
+  /**
+   * Write the checkpoint back atomically (one global `set`). Only sessions
+   * that fold succeeded are recorded — an unreadable log never advances the
+   * persisted cursor, so a corrupt session is re-attempted on the next restart.
+   */
+  private async persistCheckpoint(): Promise<void> {
+    const sessions: Record<string, UsageStatsSession> = {}
+    for (const [key, revision] of this.revisions) {
+      if (this.unreadable.has(key)) continue
+      sessions[key] = { cursor: this.cursors.get(key) ?? 0, revision: String(revision) }
+    }
+    const checkpoint: UsageStatsCheckpoint = {
+      sessions,
+      days: Object.fromEntries([...this.days].map(([key, day]) => [key, persistDay(day)])),
+    }
+    await this.checkpoint?.set(checkpoint)
   }
 
   /** Add one event's contribution to its day bucket. */

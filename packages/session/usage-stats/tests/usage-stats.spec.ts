@@ -1,8 +1,18 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, afterEach } from 'vitest'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId, createAssistantMessage, type TokenUsage } from '@deepseek-ai/dsh-llm'
 import { SESSION_FORMAT_VERSION, SessionId, SessionSeq, type SessionEvent, type SessionHeader } from '@deepseek-ai/dsh-session'
 import { SessionPersistenceRevision, type SessionPersistenceSnapshot } from '@deepseek-ai/dsh-session-persistence'
+import Storage from '@deepseek-ai/dsh-storage'
+import {
+  apply as storageJsonApply, Config as storageJsonConfig, inject as storageJsonInject, name as storageJsonName,
+} from '@deepseek-ai/dsh-storage-json'
+import {
+  apply as storageDomainApply, Config as storageDomainConfig, inject as storageDomainInject, name as storageDomainName,
+} from '@deepseek-ai/dsh-storage-domain'
 import UsageStatsService from '../src/index.ts'
 import type { UsageStatsDay, UsageStatsValue } from '../src/index.ts'
 
@@ -50,10 +60,10 @@ function usageEvent(time: number, usage: TokenUsage, model = 'test'): SessionEve
     content: [{ type: 'text', text: 'answer' }],
     source: { provider: 'test', model },
   })
-  return { type: 'assistant/message', seq: SessionSeq(seq++), time, data: { turn: 1, step: 1, message, usage } }
+  return { type: 'assistant/message', seq: SessionSeq(seq++), time, data: { turn: 1, step: 1, message, stream: [], usage } }
 }
 function bareMessageEvent(time: number): SessionEvent {
-  return { type: 'assistant/message', seq: SessionSeq(seq++), time, data: { turn: 1, step: 1, message: MESSAGE } }
+  return { type: 'assistant/message', seq: SessionSeq(seq++), time, data: { turn: 1, step: 1, message: MESSAGE, stream: [] } }
 }
 function searchEvent(time: number): SessionEvent {
   return { type: 'tool/call', seq: SessionSeq(seq++), time, data: { turn: 1, step: 1, callId: ToolCallId(`call-${seq}`), name: 'web_search', arguments: '{}' } }
@@ -62,7 +72,7 @@ function otherToolEvent(time: number): SessionEvent {
   return { type: 'tool/call', seq: SessionSeq(seq++), time, data: { turn: 1, step: 1, callId: ToolCallId(`call-${seq}`), name: 'read', arguments: '{}' } }
 }
 
-function stubPersistence(sessions: StubSession[]): unknown {
+function stubPersistence(sessions: StubSession[], openCalls?: { value: number }): unknown {
   // Revision tracks each session's event count, mirroring a real backend whose
   // stat-derived revision (dev/ino/size/mtime/ctime) advances on every append
   // and stays put while the log does not change.
@@ -74,6 +84,7 @@ function stubPersistence(sessions: StubSession[]): unknown {
   return {
     list: () => Promise.resolve(snapshots()),
     open: (id: SessionId, access: 'read' | 'write') => {
+      if (openCalls !== undefined) openCalls.value += 1
       expect(access).toBe('read')
       const session = sessions.find(candidate => candidate.meta.id === id)
       if (session === undefined) return Promise.reject(new Error(`unknown session '${id}'`))
@@ -89,9 +100,30 @@ function stubPersistence(sessions: StubSession[]): unknown {
   }
 }
 
-async function mount(sessions: StubSession[]): Promise<Context> {
+const roots: string[] = []
+
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+})
+
+interface MountOptions {
+  /** Shared json-backend root so two mounts observe the same persisted checkpoint. */
+  root?: string
+  /** Mutated by each persistence `open`, to assert how many logs were read. */
+  openCalls?: { value: number }
+}
+
+async function mount(sessions: StubSession[], options: MountOptions = {}): Promise<Context> {
+  const root = options.root ?? await mkdtemp(join(tmpdir(), 'dsh-usage-stats-'))
+  if (options.root === undefined) roots.push(root)
   const ctx = new Context()
-  ctx.provide('sessionPersistence', stubPersistence(sessions))
+  ctx.provide('sessionPersistence', stubPersistence(sessions, options.openCalls))
+  await ctx.plugin(Storage)
+  await ctx.plugin({ name: storageJsonName, inject: storageJsonInject, apply: storageJsonApply, Config: storageJsonConfig }, { root })
+  await ctx.plugin(
+    { name: storageDomainName, inject: storageDomainInject, apply: storageDomainApply, Config: storageDomainConfig },
+    { backend: 'json' },
+  )
   await ctx.plugin(UsageStatsService)
   return ctx
 }
@@ -341,6 +373,111 @@ describe('UsageStatsService', () => {
       expect(bucket.hours![10]).toMatchObject({ hour: 10, input: 100, output: 20, requests: 1 })
     } finally {
       await ctx.fiber.dispose()
+    }
+  })
+})
+
+describe('UsageStatsService checkpoint persistence', () => {
+  it('cold start with no checkpoint backfills once, then skips unchanged logs', async () => {
+    const sessions: StubSession[] = [
+      { meta: header('a'), events: [usageEvent(dayTime(1), { inputTokens: 42, outputTokens: 8 }), searchEvent(dayTime(1))] },
+    ]
+    const openCalls = { value: 0 }
+    const ctx = await mount(sessions, { openCalls })
+    try {
+      const value = await ctx.usageStats.stats({ days: 7 })
+      expect(openCalls.value).toBe(1)
+      expect(bucketFor(value, 1)).toMatchObject({ input: 42, output: 8, searches: 1 })
+      // Unchanged revision since the last fold → the later query reads no bytes.
+      await ctx.usageStats.stats({ days: 7 })
+      expect(openCalls.value).toBe(1)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('a warm restart reads the persisted checkpoint and avoids the full scan', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-usage-stats-'))
+    roots.push(root)
+    const sessions: StubSession[] = [
+      { meta: header('a'), events: [usageEvent(dayTime(1), { inputTokens: 42, outputTokens: 8 }), searchEvent(dayTime(1))] },
+    ]
+    const first = await mount(sessions, { root })
+    expect(bucketFor(await first.usageStats.stats({ days: 7 }), 1)).toMatchObject({ input: 42, output: 8, searches: 1 })
+    await first.fiber.dispose()
+
+    const secondOpenCalls = { value: 0 }
+    const second = await mount(sessions, { root, openCalls: secondOpenCalls })
+    try {
+      const value = await second.usageStats.stats({ days: 7 })
+      expect(bucketFor(value, 1)).toMatchObject({ input: 42, output: 8, searches: 1 })
+      // The checkpoint already covered this revision, so no log bytes are read.
+      expect(secondOpenCalls.value).toBe(0)
+    } finally {
+      await second.fiber.dispose()
+    }
+  })
+
+  it('refolds only the changed session after a restart; unchanged sessions are skipped', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-usage-stats-'))
+    roots.push(root)
+    const initial: StubSession[] = [
+      { meta: header('a'), events: [usageEvent(dayTime(1), { inputTokens: 20, outputTokens: 2 })] },
+      { meta: header('b'), events: [usageEvent(dayTime(1), { inputTokens: 30, outputTokens: 3 })] },
+    ]
+    const first = await mount(initial, { root })
+    await first.usageStats.stats({ days: 7 })
+    await first.fiber.dispose()
+
+    // Only session 'b' gained an event between the two processes.
+    const changed: StubSession[] = [
+      { meta: header('a'), events: [usageEvent(dayTime(1), { inputTokens: 20, outputTokens: 2 })] },
+      {
+        meta: header('b'),
+        events: [
+          usageEvent(dayTime(1), { inputTokens: 30, outputTokens: 3 }),
+          usageEvent(dayTime(1), { inputTokens: 5, outputTokens: 1 }),
+        ],
+      },
+    ]
+    const openCalls = { value: 0 }
+    const second = await mount(changed, { root, openCalls: openCalls })
+    try {
+      const value = await second.usageStats.stats({ days: 7 })
+      // 'a' revision unchanged → skipped; 'b' advanced → folded once.
+      expect(openCalls.value).toBe(1)
+      expect(bucketFor(value, 1)).toMatchObject({ input: 55, output: 6, requests: 3 })
+    } finally {
+      await second.fiber.dispose()
+    }
+  })
+
+  it('a corrupt session advances no checkpoint and is re-attempted on the next restart', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-usage-stats-'))
+    roots.push(root)
+    const sessions: StubSession[] = [
+      { meta: header('corrupt'), events: [], readError: new Error('corrupt session log: seq gap') },
+      { meta: header('readable'), events: [usageEvent(dayTime(1), { inputTokens: 13, outputTokens: 7 })] },
+    ]
+    const first = await mount(sessions, { root })
+    const warn = vi.spyOn(first.logger, 'warn').mockImplementation(() => undefined)
+    await first.usageStats.stats({ days: 7 })
+    expect(warn).toHaveBeenCalledTimes(1)
+    warn.mockRestore()
+    await first.fiber.dispose()
+
+    // The corrupt lifecycle was never check-pointed, so a fresh process attempts
+    // it again (re-warning) while still aggregating the readable session.
+    const second = await mount(sessions, { root })
+    const warn2 = vi.spyOn(second.logger, 'warn').mockImplementation(() => undefined)
+    try {
+      const value = await second.usageStats.stats({ days: 7 })
+      expect(bucketFor(value, 1)).toMatchObject({ input: 13, output: 7, requests: 1 })
+      expect(warn2).toHaveBeenCalledTimes(1)
+      expect(warn2).toHaveBeenCalledWith(expect.stringContaining('usage-stats: skipped session "corrupt"'))
+    } finally {
+      warn2.mockRestore()
+      await second.fiber.dispose()
     }
   })
 })

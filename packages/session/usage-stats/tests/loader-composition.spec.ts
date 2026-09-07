@@ -8,6 +8,9 @@ import Include from '@deepseek-ai/cordis-plugin-include'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import Storage from '@deepseek-ai/dsh-storage'
+import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
+import * as StorageSqlite from '@deepseek-ai/dsh-storage-sqlite'
 import { ToolCallId, createAssistantMessage } from '@deepseek-ai/dsh-llm'
 import UsageStatsService from '../src/index.ts'
 import type { UsageStatsValue } from '../src/index.ts'
@@ -30,6 +33,9 @@ async function loadComposition(configPath: string): Promise<Context> {
   const modules = new Map<string, unknown>([
     ['@deepseek-ai/dsh-session', SessionStore],
     ['@deepseek-ai/dsh-session-persistence-jsonl', JsonlSessionPersistence],
+    ['@deepseek-ai/dsh-storage', Storage],
+    ['@deepseek-ai/dsh-storage-sqlite', StorageSqlite],
+    ['@deepseek-ai/dsh-storage-domain', StorageDomain],
     ['@deepseek-ai/dsh-usage-stats', UsageStatsService],
   ])
   ctx.loader.internal = {
@@ -73,7 +79,7 @@ async function readStoredEventCount(ctx: Context, id: SessionId): Promise<number
 }
 
 describe('usage-stats through a real Loader composition', () => {
-  it('serves per-day usage folded from the durable log and re-derives it after a restart', async () => {
+  it('serves per-day usage folded from the durable log and re-derives it across a warm restart', async () => {
     root = await mkdtemp(join(tmpdir(), 'dsh-usage-stats-loader-'))
     const configPath = join(root, 'cordis.yml')
     await writeFile(configPath, [
@@ -83,6 +89,13 @@ describe('usage-stats through a real Loader composition', () => {
       `    root: ${JSON.stringify(join(root, 'sessions'))}`,
       '    compression: none',
       '    writeBatchMaxDelayMs: 1',
+      "- name: '@deepseek-ai/dsh-storage'",
+      "- name: '@deepseek-ai/dsh-storage-sqlite'",
+      '  config:',
+      `    path: ${JSON.stringify(join(root, 'usage-stats.db'))}`,
+      "- name: '@deepseek-ai/dsh-storage-domain'",
+      '  config:',
+      '    backend: sqlite',
       "- name: '@deepseek-ai/dsh-usage-stats'",
       '',
     ].join('\n'))
@@ -100,6 +113,7 @@ describe('usage-stats through a real Loader composition', () => {
       turn: 1,
       step: 1,
       message,
+      stream: [],
       usage: { inputTokens: 100, outputTokens: 20, cacheReadTokens: 50 },
     }, { surfaceOp: 'append' })
     session.append('tool/call', {
@@ -120,7 +134,9 @@ describe('usage-stats through a real Loader composition', () => {
     await first.fiber.dispose()
     contexts.splice(contexts.indexOf(first), 1)
 
-    // A cold composition re-derives the aggregate from the persisted log.
+    // A second composition over the same sqlite file opens the persisted
+    // `usage_stats` checkpoint, so it seeds from the checkpoint instead of
+    // rescanning the durable log.
     const second = await loadComposition(configPath)
     const again = await second.usageStats.stats({ days: 30 })
     expect(bucketFor(again, todayKey())).toMatchObject({ input: 150, output: 20, cacheRead: 50, searches: 1 })
