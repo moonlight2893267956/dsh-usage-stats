@@ -14,6 +14,7 @@ import type { UsageStatsStore } from './store.ts'
 import type { en } from './locales.ts'
 import styles from './UsageSection.module.css'
 import { ModelFilter } from './ModelFilter.tsx'
+import { DatePicker } from './DatePicker.tsx'
 
 /** Injected dependencies of {@link UsageSection} (slot `inject`). */
 export interface UsageSectionInjected {
@@ -56,6 +57,14 @@ function formatFull(value: number): string {
 function dateLabel(key: string): string {
   const parts = key.split('-')
   return `${Number(parts[1])}月${Number(parts[2])}日`
+}
+
+/** Local `YYYY-MM-DD` key for now; identifies the today view and seeds the date picker. */
+function todayKey(): string {
+  const date = new Date()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
 }
 
 /** Total tokens across every category for one day. */
@@ -106,24 +115,29 @@ function dayAxisLabels(buckets: ChartBucket[]): string[] {
   return [first?.label ?? '', mid?.label ?? '', last?.label ?? '']
 }
 
-/** Build the chart buckets array: per-hour when days=1, per-day otherwise. The
- * today view only draws hours up to `nowHour` — future hours have no usage yet,
- * so a bar chart that stops at the current moment reads as "so far today". */
-function buildChartBuckets(buckets: readonly UsageStatsDay[], days: number, nowHour: number): ChartBucket[] {
-  if (days === 1) {
+/** Build the chart buckets array: per-hour for a single-day view, per-day
+ * otherwise. A today view only draws hours up to `nowHour` (future hours have
+ * no usage yet, so the chart reads as "so far today"), while a past day draws
+ * its full 24 hours — a completed day has no future hours left to hide. */
+function buildChartBuckets(
+  buckets: readonly UsageStatsDay[],
+  isSingleDay: boolean,
+  isToday: boolean,
+  nowHour: number,
+): ChartBucket[] {
+  if (isSingleDay) {
     const day = buckets[0]
     if (day?.hours !== undefined) {
-      return day.hours
-        .filter(h => h.hour <= nowHour)
-        .map(h => ({
-          key: `h${h.hour}`,
-          label: hourLabel(h.hour),
-          input: h.input,
-          cacheRead: h.cacheRead,
-          output: h.output,
-          requests: h.requests,
-          searches: h.searches,
-        }))
+      const hours = isToday ? day.hours.filter(h => h.hour <= nowHour) : day.hours
+      return hours.map(h => ({
+        key: `h${h.hour}`,
+        label: hourLabel(h.hour),
+        input: h.input,
+        cacheRead: h.cacheRead,
+        output: h.output,
+        requests: h.requests,
+        searches: h.searches,
+      }))
     }
   }
   return buckets.map(b => ({
@@ -192,12 +206,15 @@ function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
     searches += bucket.searches
   }
 
+  const today = todayKey()
+  const isSingleDay = state.date !== null
+  const isToday = isSingleDay && state.date === today
   const nowHour = new Date().getHours()
-  // The today view is hourly whenever the source day carries per-hour data, even
-  // when the current-hour cut leaves a single bar (e.g. just past midnight) —
-  // otherwise a trimmed-to-one-bar day would silently degrade to day granularity.
-  const isHourly = days === 1 && buckets[0]?.hours !== undefined
-  const chartBuckets = buildChartBuckets(buckets, days, nowHour)
+  // The single-day view is hourly whenever the source day carries per-hour data,
+  // even when the current-hour cut leaves a single bar (e.g. just past midnight)
+  // — otherwise a trimmed-to-one-bar day would silently degrade to day granularity.
+  const isHourly = isSingleDay && buckets[0]?.hours !== undefined
+  const chartBuckets = buildChartBuckets(buckets, isSingleDay, isToday, nowHour)
   let maxBucket = 1
   for (const cb of chartBuckets) {
     const total = bucketTotal(cb)
@@ -207,7 +224,11 @@ function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
   const ticks: number[] = []
   for (let i = 0; i <= TICKS; i++) ticks.push((maxBucket / TICKS) * i)
 
-  const isToday = days === 1
+  // Highlight the matching preset button only when it is actually the active
+  // view: "today" only for the today single-day view, the trailing length for a
+  // multi-day window, and nothing when a specific past day is picked (that is a
+  // custom date, not one of the presets).
+  const activeRange = isSingleDay ? (isToday ? 1 : null) : days
   const count = chartBuckets.length
   const hitRate = totals.input > 0 ? Math.round((totals.cacheRead / totals.input) * 100) : 0
 
@@ -225,18 +246,32 @@ function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
               onChange={next => controller.setModels(next)}
             />
           )}
-          <div className={styles['range']} role="group" aria-label={t('chart.title')}>
-            {RANGES.map(range => (
-              <button
-                key={range}
-                type="button"
-                className={`${styles['rangeButton']} ${range === days ? styles['rangeButtonActive'] : ''}`}
-                aria-pressed={range === days}
-                onClick={() => controller.setDays(range)}
-              >
-                {t(`range.${range}` as keyof typeof en)}
-              </button>
-            ))}
+          <div className={styles['rangeControls']}>
+            <DatePicker
+              value={state.date ?? today}
+              max={today}
+              label={t('chart.pickDate' as keyof typeof en)}
+              formatValue={dateLabel}
+              monthLabel={(year, month) => t('datePicker.monthYear' as keyof typeof en).replace('{year}', String(year)).replace('{month}', String(month + 1))}
+              weekdays={t('datePicker.weekdays' as keyof typeof en).split(',')}
+              todayLabel={t('datePicker.today' as keyof typeof en)}
+              prevLabel={t('datePicker.prevMonth' as keyof typeof en)}
+              nextLabel={t('datePicker.nextMonth' as keyof typeof en)}
+              onChange={(date) => controller.setDate(date)}
+            />
+            <div className={styles['range']} role="group" aria-label={t('chart.title')}>
+              {RANGES.map(range => (
+                <button
+                  key={range}
+                  type="button"
+                  className={`${styles['rangeButton']} ${range === activeRange ? styles['rangeButtonActive'] : ''}`}
+                  aria-pressed={range === activeRange}
+                  onClick={() => { if (range === 1) controller.setDate(today); else controller.setDays(range) }}
+                >
+                  {t(`range.${range}` as keyof typeof en)}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </header>
@@ -275,7 +310,9 @@ function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
 
       <div className={`${styles['chart']} ${isHourly ? styles['chartHourly'] : ''}`}>
         <h3 className={styles['chartTitle']}>
-          {isToday ? t('chart.title.today') : t('chart.title')}
+          {isSingleDay
+            ? (isToday ? t('chart.title.today') : t('chart.title.day').replace('{date}', dateLabel(state.date ?? today)))
+            : t('chart.title')}
           {grand > 0 && <span className={styles['chartTotal']}>{` ${formatFull(grand)}`}</span>}
         </h3>
         {loading
@@ -412,7 +449,9 @@ function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
                   </div>
                 </div>
                 {(() => {
-                  const labels = isHourly ? hourAxisLabels(nowHour) : dayAxisLabels(chartBuckets)
+                  const labels = isSingleDay
+                    ? (isToday ? hourAxisLabels(nowHour) : hourAxisLabels(23))
+                    : dayAxisLabels(chartBuckets)
                   return (
                     <div className={`${styles['xAxis']} ${isHourly ? styles['xAxisHourly'] : ''} ${labels.length === 1 ? styles['xAxisSingle'] : ''}`}>
                       {labels.map((label, i) => (

@@ -193,14 +193,27 @@ export class UsageStatsService extends TypertRemoteService {
   }
 
   /**
-   * Fold any newly durable events, then return the trailing per-day window.
-   * @param request - the requested window length in days.
-   * @returns the clamped window, oldest first.
+   * Fold any newly durable events, then return either one specific day (when
+   * `request.date` is set) or the trailing per-day window.
+   * @param request - the requested window length (or a single `date`), plus the model filter.
+   * @returns the requested day/window, oldest first.
    */
   @Remote('stats')
   async stats(request: UsageStatsRequest): Promise<UsageStatsValue> {
-    const days = clampDays(request.days)
     await this.fold()
+    if (request.date !== undefined) {
+      // A single calendar day is always a one-bucket window with its full
+      // per-hour breakdown. A key absent from the fold reads as a zero bucket
+      // rather than an error, so a caller may pick any date.
+      const seenModels = new Set<string>()
+      const bucket = this.buildDayBucket(request.date, request.models, true, seenModels)
+      return Object.freeze({
+        days: 1,
+        buckets: Object.freeze([bucket]),
+        models: Object.freeze([...seenModels].sort()),
+      })
+    }
+    const days = clampDays(request.days)
     return this.snapshot(days, request.models)
   }
 
@@ -340,90 +353,103 @@ export class UsageStatsService extends TypertRemoteService {
     return day
   }
 
-  /** Build the trailing-`days` window, oldest first, as frozen lossless JSON. */
-  private snapshot(days: number, models: readonly string[] | null | undefined): UsageStatsValue {
+  /** Build one frozen per-day bucket from the fold, applying the model filter and
+   * collecting every model in the window for the filter control (regardless of
+   * the active filter, so the dropdown never shrinks to only the selected
+   * models). When `includeHours` is set the bucket carries its full 24-hour
+   * breakdown; multi-day windows omit it. */
+  private buildDayBucket(
+    key: string,
+    models: readonly string[] | null | undefined,
+    includeHours: boolean,
+    seenModels: Set<string>,
+  ): UsageStatsDay {
     const modelFilter = models !== undefined && models !== null && models.length > 0 ? models : null
+    const day = this.days.get(key) ?? emptyDay()
+    const modelsOut: Record<string, UsageStatsModelTotals> = {}
+    let input = 0
+    let cacheRead = 0
+    let output = 0
+    let requests = 0
+    if (modelFilter === null) {
+      input = day.input
+      cacheRead = day.cacheRead
+      output = day.output
+      requests = day.requests
+      for (const [model, totals] of day.models) {
+        modelsOut[model] = Object.freeze({ ...totals })
+        seenModels.add(model)
+      }
+    } else {
+      for (const model of modelFilter) {
+        const totals = day.models.get(model)
+        if (totals === undefined) continue
+        modelsOut[model] = Object.freeze({ ...totals })
+        input += totals.input
+        cacheRead += totals.cacheRead
+        output += totals.output
+        requests += totals.requests
+      }
+    }
+    // A missing model in the fold has seen no tokens, yet the window model list
+    // still reports it so the filter control stays complete.
+    for (const model of day.models.keys()) {
+      seenModels.add(model)
+    }
+    const hours: UsageStatsHour[] | undefined = includeHours
+      ? day.hours.map((hour, hourIndex) => {
+        let hInput = 0
+        let hCacheRead = 0
+        let hOutput = 0
+        let hRequests = 0
+        if (modelFilter === null) {
+          hInput = hour.input
+          hCacheRead = hour.cacheRead
+          hOutput = hour.output
+          hRequests = hour.requests
+        } else {
+          for (const model of modelFilter) {
+            const totals = hour.models.get(model)
+            if (totals === undefined) continue
+            hInput += totals.input
+            hCacheRead += totals.cacheRead
+            hOutput += totals.output
+            hRequests += totals.requests
+          }
+        }
+        return Object.freeze({
+          hour: hourIndex,
+          input: hInput,
+          cacheRead: hCacheRead,
+          output: hOutput,
+          requests: hRequests,
+          searches: hour.searches,
+        })
+      })
+      : undefined
+    return Object.freeze({
+      date: key,
+      input,
+      cacheRead,
+      output,
+      requests,
+      searches: day.searches,
+      models: Object.freeze(modelsOut),
+      ...(hours !== undefined ? { hours } : {}),
+    })
+  }
+
+  /** Build the trailing-`days` window, oldest first, as frozen lossless JSON.
+   * The per-hour breakdown is included only for a single-day window (today). */
+  private snapshot(days: number, models: readonly string[] | null | undefined): UsageStatsValue {
     const seenModels = new Set<string>()
     const buckets: UsageStatsDay[] = []
     const today = new Date()
+    const includeHours = days === 1
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date(today)
       date.setDate(date.getDate() - i)
-      const key = dayKeyOf(date.getTime())
-      const day = this.days.get(key) ?? emptyDay()
-      const modelsOut: Record<string, UsageStatsModelTotals> = {}
-      let input = 0
-      let cacheRead = 0
-      let output = 0
-      let requests = 0
-      if (modelFilter === null) {
-        input = day.input
-        cacheRead = day.cacheRead
-        output = day.output
-        requests = day.requests
-        for (const [model, totals] of day.models) {
-          modelsOut[model] = Object.freeze({ ...totals })
-          seenModels.add(model)
-        }
-      } else {
-        for (const model of modelFilter) {
-          const totals = day.models.get(model)
-          if (totals === undefined) continue
-          modelsOut[model] = Object.freeze({ ...totals })
-          input += totals.input
-          cacheRead += totals.cacheRead
-          output += totals.output
-          requests += totals.requests
-        }
-      }
-      // Always collect every model in the window for the filter control,
-      // regardless of the active filter — so the dropdown never shrinks to
-      // only the selected models.
-      for (const model of day.models.keys()) {
-        seenModels.add(model)
-      }
-      // Per-hour breakdown is only included for a single-day window (today).
-      const hours: UsageStatsHour[] | undefined = days === 1
-        ? day.hours.map((hour, hourIndex) => {
-          let hInput = 0
-          let hCacheRead = 0
-          let hOutput = 0
-          let hRequests = 0
-          if (modelFilter === null) {
-            hInput = hour.input
-            hCacheRead = hour.cacheRead
-            hOutput = hour.output
-            hRequests = hour.requests
-          } else {
-            for (const model of modelFilter) {
-              const totals = hour.models.get(model)
-              if (totals === undefined) continue
-              hInput += totals.input
-              hCacheRead += totals.cacheRead
-              hOutput += totals.output
-              hRequests += totals.requests
-            }
-          }
-          return Object.freeze({
-            hour: hourIndex,
-            input: hInput,
-            cacheRead: hCacheRead,
-            output: hOutput,
-            requests: hRequests,
-            searches: hour.searches,
-          })
-        })
-        : undefined
-      buckets.push(Object.freeze({
-        date: key,
-        input,
-        cacheRead,
-        output,
-        requests,
-        searches: day.searches,
-        models: Object.freeze(modelsOut),
-        ...(hours !== undefined ? { hours } : {}),
-      }))
+      buckets.push(this.buildDayBucket(dayKeyOf(date.getTime()), models, includeHours, seenModels))
     }
     return Object.freeze({
       days,

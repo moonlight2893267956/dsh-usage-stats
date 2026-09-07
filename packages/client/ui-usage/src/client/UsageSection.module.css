@@ -66,6 +66,13 @@
   color: var(--dsw-alias-label-primary);
 }
 
+.rangeControls {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
 .cards {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

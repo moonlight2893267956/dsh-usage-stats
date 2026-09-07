@@ -6,6 +6,7 @@
  * overwrites a newer one.
  */
 import { describe, expect, it } from 'vitest'
+import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { UsageStatsDay, UsageStatsRequest, UsageStatsValue } from '@deepseek-ai/dsh-usage-stats/types'
 import { UsageStatsStore, type UsageStatsRemote } from '../src/client/store.ts'
@@ -14,7 +15,7 @@ function ok(value: UsageStatsValue): RemoteResult<UsageStatsValue> {
   return { ok: true, value }
 }
 function carrierFailure(message: string): RemoteResult<UsageStatsValue> {
-  return { ok: false, error: { code: 'internal', message, details: {} } }
+  return { ok: false, error: new RemoteError('gateway/internal', message, {}) }
 }
 
 function day(date: string, input: number, output: number, searches = 0): UsageStatsDay {
@@ -46,7 +47,11 @@ describe('UsageStatsStore', () => {
     expect(snapshot.status).toBe('ready')
     expect(snapshot.error).toBeNull()
     expect(snapshot.buckets).toEqual([day('2026-08-18', 10, 5)])
-    expect(requests).toEqual([{ days: 1, models: [] }])
+    // The seeded default is the single-day view, so the first load asks for
+    // today's date (a one-day window), not a plain trailing window.
+    expect(requests).toHaveLength(1)
+    expect(requests[0]).toMatchObject({ days: 1, models: [] })
+    expect(requests[0].date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 
   it('surfaces a carrier failure without losing the last good buckets', async () => {
@@ -77,12 +82,14 @@ describe('UsageStatsStore', () => {
   it('reloads with the new window when it changes, and not when it is unchanged', async () => {
     const { remote, requests } = fakeRemote(request => Promise.resolve(ok(window(request.days, []))))
     const store = new UsageStatsStore(remote)
-    // Today is the default window, so setting it again issues no request.
-    store.setDays(1)
-    expect(requests).toEqual([])
+    // The seeded default is the single-day today view; entering a multi-day
+    // window is a change, so it reloads.
     store.setDays(30)
     await Promise.resolve()
     expect(store.store.getSnapshot().days).toBe(30)
+    // Setting the same window again issues no request.
+    store.setDays(30)
+    expect(requests).toEqual([{ days: 30, models: [] }])
     store.setDays(90)
     await Promise.resolve()
     expect(requests).toEqual([{ days: 30, models: [] }, { days: 90, models: [] }])

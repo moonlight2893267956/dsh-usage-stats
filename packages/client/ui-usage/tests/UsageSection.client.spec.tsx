@@ -92,12 +92,15 @@ describe('UsageSection', () => {
     const remote: UsageStatsRemote = {
       stats: (request) => {
         requests.push(request)
-        return Promise.resolve({ ok: true, value: { days: request.days, buckets: [day('2026-08-18', 5, 0, 1)], models: [] } })
+        return Promise.resolve({ ok: true, value: { days: request.days, date: request.date, buckets: [day('2026-08-18', 5, 0, 1)], models: [] } })
       },
     }
     render(<UsageSection {...injected(remote)} />)
-    // The section defaults to today, so its first load requests a 1-day window.
-    await waitFor(() => expect(requests).toContainEqual({ days: 1, models: [] }))
+    // The section defaults to the single-day today view, so its first load
+    // requests today's date as a one-day window.
+    await waitFor(() => expect(requests).toHaveLength(1))
+    expect(requests[0]).toMatchObject({ days: 1, models: [] })
+    expect(requests[0].date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 
   it('shows only today when today is the selected window', async () => {
@@ -261,6 +264,49 @@ describe('UsageSection', () => {
     expect(screen.getByText('02:00')).toBeTruthy()
     expect(screen.queryByText('08:00')).toBeNull()
     expect(screen.queryByText('23:00')).toBeNull()
+  })
+
+  it('renders the full 24 hours when a past day is selected', async () => {
+    // Pin "now" to a fixed today so both the picker's max and the seeded today
+    // view are stable; only the Date clock is faked so waitFor keeps real timers.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-08-18T15:30:00'))
+    const hours: UsageStatsHour[] = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      input: hour === 10 ? 120 : hour === 14 ? 80 : 0,
+      cacheRead: hour === 14 ? 30 : 0,
+      output: hour === 10 ? 20 : hour === 14 ? 10 : 0,
+      requests: hour === 10 || hour === 14 ? 1 : 0,
+      searches: 0,
+    }))
+    const remote: UsageStatsRemote = {
+      stats: (request) => Promise.resolve<RemoteResult<UsageStatsValue>>({
+        ok: true,
+        value: {
+          days: 1,
+          buckets: [day(request.date ?? '2026-08-18', 200, 30, 30, 0, 2, hours)],
+          models: [],
+        },
+      }),
+    }
+    const { container } = render(<UsageSection {...injected(remote)} />)
+    await waitFor(() => expect(screen.getByText('今日 Tokens')).toBeTruthy())
+    // Open the dropdown calendar and pick a past day (relative to the fake
+    // today); the grid anchors to the selected month, which is today's month.
+    fireEvent.click(screen.getByLabelText('选择日期'))
+    fireEvent.click(screen.getByRole('button', { name: '2026-08-16' }))
+    await waitFor(() => expect(container.querySelectorAll(`.${styles['bar']}`)).toHaveLength(24))
+    // The past day draws its full day and reaches the day's last hour, instead
+    // of cutting to the current time like the today view.
+    expect(screen.getByText('00:00')).toBeTruthy()
+    expect(screen.getByText('23:00')).toBeTruthy()
+    // The title names the selected day.
+    expect(screen.getAllByText((_, el) => el?.textContent?.includes('8月16日 Tokens') === true).length).toBeGreaterThanOrEqual(1)
+    // A picked past day is a custom date, not the "today" preset, so none of the
+    // range presets stay highlighted.
+    expect(screen.getByRole('button', { name: '今天' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('button', { name: '7天' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('button', { name: '30天' }).getAttribute('aria-pressed')).toBe('false')
   })
 
   it('renders metric cards with category totals', async () => {

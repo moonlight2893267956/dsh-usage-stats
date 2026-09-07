@@ -39,6 +39,14 @@ function dayTime(offsetDays: number): number {
   return date.getTime()
 }
 
+/** `offsetDays` before today at a specific hour (minute/second/ms zeroed). */
+function dayAtHour(offsetDays: number, hour: number): number {
+  const date = new Date()
+  date.setDate(date.getDate() - offsetDays)
+  date.setHours(hour, 0, 0, 0)
+  return date.getTime()
+}
+
 /** Today at a specific hour (minute/second/ms zeroed). */
 function todayAtHour(hour: number): number {
   const date = new Date()
@@ -134,6 +142,11 @@ function bucketFor(value: UsageStatsValue, offsetDays: number): UsageStatsDay {
     return { date: dayKey(offsetDays), input: 0, cacheRead: 0, output: 0, requests: 0, searches: 0, models: {} }
   }
   return bucket
+}
+
+/** The sole bucket of a single-day (`date`) stats result, which is always present. */
+function onlyBucket(value: UsageStatsValue): UsageStatsDay {
+  return value.buckets[0] ?? { date: 'unknown', input: 0, cacheRead: 0, output: 0, requests: 0, searches: 0, models: {} }
 }
 
 describe('UsageStatsService', () => {
@@ -371,6 +384,100 @@ describe('UsageStatsService', () => {
       const value = await ctx.usageStats.stats({ days: 1, models: ['deepseek-reasoner'] })
       const bucket = bucketFor(value, 0)
       expect(bucket.hours![10]).toMatchObject({ hour: 10, input: 100, output: 20, requests: 1 })
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('reads one specific day with its full per-hour breakdown via date', async () => {
+    const ctx = await mount([
+      {
+        meta: header('a'),
+        events: [
+          usageEvent(dayTime(2), { inputTokens: 100, outputTokens: 20 }),
+          usageEvent(dayAtHour(2, 13), { inputTokens: 50, outputTokens: 10, cacheReadTokens: 30 }),
+          searchEvent(dayTime(2)),
+        ],
+      },
+    ])
+    try {
+      const value = await ctx.usageStats.stats({ days: 30, date: dayKey(2) })
+      expect(value.days).toBe(1)
+      expect(value.buckets).toHaveLength(1)
+      const bucket = onlyBucket(value)
+      expect(bucket.date).toBe(dayKey(2))
+      expect(bucket).toMatchObject({ input: 180, output: 30, cacheRead: 30, requests: 2, searches: 1 })
+      expect(bucket.hours).toHaveLength(24)
+      expect(bucket.hours![13]).toMatchObject({ hour: 13, input: 80, output: 10, cacheRead: 30, requests: 1, searches: 0 })
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('reads an unknown day as a zero bucket with full hours via date', async () => {
+    const ctx = await mount([])
+    try {
+      const value = await ctx.usageStats.stats({ days: 7, date: '2020-01-01' })
+      expect(value.days).toBe(1)
+      expect(onlyBucket(value)).toMatchObject({
+        date: '2020-01-01', input: 0, cacheRead: 0, output: 0, requests: 0, searches: 0,
+      })
+      expect(onlyBucket(value).hours).toHaveLength(24)
+      expect(value.models).toEqual([])
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('a malformed date still yields a zero bucket rather than an error', async () => {
+    const ctx = await mount([])
+    try {
+      const value = await ctx.usageStats.stats({ days: 7, date: 'oops' })
+      expect(value.days).toBe(1)
+      expect(onlyBucket(value)).toMatchObject({
+        date: 'oops', input: 0, cacheRead: 0, output: 0, requests: 0, searches: 0,
+      })
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('date takes precedence over days and ignores the window length', async () => {
+    const ctx = await mount([
+      {
+        meta: header('a'),
+        events: [usageEvent(dayTime(2), { inputTokens: 10, outputTokens: 1 })],
+      },
+    ])
+    try {
+      const value = await ctx.usageStats.stats({ days: 30, date: dayKey(2) })
+      expect(value.days).toBe(1)
+      expect(value.buckets).toHaveLength(1)
+      expect(onlyBucket(value)).toMatchObject({ date: dayKey(2), input: 10, output: 1 })
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('filters a specific day to the requested models via date', async () => {
+    const ctx = await mount([
+      {
+        meta: header('a'),
+        events: [
+          usageEvent(dayTime(2), { inputTokens: 100, outputTokens: 20 }, 'deepseek-reasoner'),
+          usageEvent(dayTime(2), { inputTokens: 200, outputTokens: 40 }, 'deepseek-chat'),
+        ],
+      },
+    ])
+    try {
+      const value = await ctx.usageStats.stats({ days: 30, date: dayKey(2), models: ['deepseek-reasoner'] })
+      const bucket = onlyBucket(value)
+      expect(bucket).toMatchObject({ input: 100, output: 20 })
+      expect(bucket.models).toEqual({
+        'deepseek-reasoner': { input: 100, cacheRead: 0, output: 20, requests: 1 },
+      })
+      // The window model list still reports every model, not just the filtered ones.
+      expect([...value.models].sort()).toEqual(['deepseek-chat', 'deepseek-reasoner'])
     } finally {
       await ctx.fiber.dispose()
     }

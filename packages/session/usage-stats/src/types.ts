@@ -53,10 +53,19 @@ export interface UsageStatsDay {
   readonly hours?: readonly UsageStatsHour[]
 }
 
-/** Read the per-day aggregate over a trailing window. */
+/** Read the per-day aggregate over a trailing window, or one specific day. */
 export interface UsageStatsRequest {
-  /** Trailing days to return, inclusive of today; clamped to the protocol range. */
+  /**
+   * Trailing days to return, inclusive of today; clamped to the protocol range.
+   * Ignored when `date` is set.
+   */
   readonly days: number
+  /**
+   * A single local calendar day (`YYYY-MM-DD`) to read instead of the trailing
+   * window. When set, the value covers only that day and carries its full
+   * per-hour breakdown; an unknown or future day reads as a zero bucket.
+   */
+  readonly date?: string
   /**
    * Restrict the aggregate to these models. When omitted or empty the totals
    * cover every model. Model ids come from the assistant-message provenance
