@@ -86,9 +86,14 @@ function hourLabel(hour: number): string {
   return `${String(hour).padStart(2, '0')}:00`
 }
 
-/** DeepSeek-style x-axis labels: four evenly spaced ticks for a 24-hour day. */
-function hourAxisLabels(): string[] {
-  return [hourLabel(0), hourLabel(8), hourLabel(16), hourLabel(23)]
+/** X-axis labels for the today view: evenly spaced ticks from midnight up to the
+ * current hour, so a bar chart that stops at `nowHour` never shows an hour past
+ * it. One tick for a single bar, otherwise four evenly spaced whole-hour ticks. */
+function hourAxisLabels(nowHour: number): string[] {
+  if (nowHour <= 0) return [hourLabel(0)]
+  if (nowHour === 1) return [hourLabel(0), hourLabel(1)]
+  const ticks = [0, Math.round(nowHour / 3), Math.round((2 * nowHour) / 3), nowHour]
+  return [...new Set(ticks)].map(hourLabel)
 }
 
 /** X-axis labels for a daily chart: first, middle, last date; a single bucket
@@ -101,20 +106,24 @@ function dayAxisLabels(buckets: ChartBucket[]): string[] {
   return [first?.label ?? '', mid?.label ?? '', last?.label ?? '']
 }
 
-/** Build the chart buckets array: per-hour when days=1, per-day otherwise. */
-function buildChartBuckets(buckets: readonly UsageStatsDay[], days: number): ChartBucket[] {
+/** Build the chart buckets array: per-hour when days=1, per-day otherwise. The
+ * today view only draws hours up to `nowHour` — future hours have no usage yet,
+ * so a bar chart that stops at the current moment reads as "so far today". */
+function buildChartBuckets(buckets: readonly UsageStatsDay[], days: number, nowHour: number): ChartBucket[] {
   if (days === 1) {
     const day = buckets[0]
     if (day?.hours !== undefined) {
-      return day.hours.map(h => ({
-        key: `h${h.hour}`,
-        label: hourLabel(h.hour),
-        input: h.input,
-        cacheRead: h.cacheRead,
-        output: h.output,
-        requests: h.requests,
-        searches: h.searches,
-      }))
+      return day.hours
+        .filter(h => h.hour <= nowHour)
+        .map(h => ({
+          key: `h${h.hour}`,
+          label: hourLabel(h.hour),
+          input: h.input,
+          cacheRead: h.cacheRead,
+          output: h.output,
+          requests: h.requests,
+          searches: h.searches,
+        }))
     }
   }
   return buckets.map(b => ({
@@ -183,7 +192,12 @@ function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
     searches += bucket.searches
   }
 
-  const chartBuckets = buildChartBuckets(buckets, days)
+  const nowHour = new Date().getHours()
+  // The today view is hourly whenever the source day carries per-hour data, even
+  // when the current-hour cut leaves a single bar (e.g. just past midnight) —
+  // otherwise a trimmed-to-one-bar day would silently degrade to day granularity.
+  const isHourly = days === 1 && buckets[0]?.hours !== undefined
+  const chartBuckets = buildChartBuckets(buckets, days, nowHour)
   let maxBucket = 1
   for (const cb of chartBuckets) {
     const total = bucketTotal(cb)
@@ -194,7 +208,6 @@ function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
   for (let i = 0; i <= TICKS; i++) ticks.push((maxBucket / TICKS) * i)
 
   const isToday = days === 1
-  const isHourly = isToday && chartBuckets.length > 1
   const count = chartBuckets.length
   const hitRate = totals.input > 0 ? Math.round((totals.cacheRead / totals.input) * 100) : 0
 
@@ -399,7 +412,7 @@ function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
                   </div>
                 </div>
                 {(() => {
-                  const labels = isHourly ? hourAxisLabels() : dayAxisLabels(chartBuckets)
+                  const labels = isHourly ? hourAxisLabels(nowHour) : dayAxisLabels(chartBuckets)
                   return (
                     <div className={`${styles['xAxis']} ${isHourly ? styles['xAxisHourly'] : ''} ${labels.length === 1 ? styles['xAxisSingle'] : ''}`}>
                       {labels.map((label, i) => (

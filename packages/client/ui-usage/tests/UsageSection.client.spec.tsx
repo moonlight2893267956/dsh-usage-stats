@@ -6,10 +6,13 @@
  * window and a load failure render their own states, and retry reloads after
  * a failure.
  */
-import { describe, expect, it, afterEach } from 'vitest'
+import { describe, expect, it, afterEach, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+})
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { UsageStatsDay, UsageStatsHour, UsageStatsRequest, UsageStatsValue } from '@deepseek-ai/dsh-usage-stats/types'
@@ -176,7 +179,12 @@ describe('UsageSection', () => {
     expect(screen.queryAllByText((_, el) => el?.textContent?.startsWith('每日 Tokens') === true && el?.textContent?.includes('101') === true)).toHaveLength(0)
   })
 
-  it('renders per-hour bars when the window is today with hours data', async () => {
+  it('renders per-hour bars up to the current hour when the window is today', async () => {
+    // Pin "now" to 15:30 on the same calendar day the buckets describe, so
+    // `new Date().getHours()` in the section trims the today chart to 00:00–15:00.
+    // Only the Date clock is faked — the waitFor polling needs real timers.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-08-18T15:30:00'))
     const hours: UsageStatsHour[] = Array.from({ length: 24 }, (_, hour) => ({
       hour,
       input: hour === 10 ? 120 : hour === 14 ? 80 : 0,
@@ -192,11 +200,67 @@ describe('UsageSection', () => {
     }
     const { container } = render(<UsageSection {...injected(remoteWith(value))} />)
     await waitFor(() => expect(screen.getByText('今日 Tokens')).toBeTruthy())
-    // 24 hourly bars rendered.
-    expect(container.querySelectorAll(`.${styles['bar']}`)).toHaveLength(24)
-    // X-axis shows hour labels.
+    // Only hours up to the cut (00:00–15:00, inclusive) are drawn — never the
+    // whole 24-hour day.
+    expect(container.querySelectorAll(`.${styles['bar']}`)).toHaveLength(16)
+    // The x-axis ends at the current hour, not the last hour of the day.
     expect(screen.getByText('00:00')).toBeTruthy()
-    expect(screen.getByText('23:00')).toBeTruthy()
+    expect(screen.getByText('15:00')).toBeTruthy()
+    expect(screen.queryByText('23:00')).toBeNull()
+  })
+
+  it('keeps the today hourly style, drawn to one bar, just past midnight', async () => {
+    // At 00:30 the current-hour cut leaves a single bar, but the day still
+    // carries per-hour data, so the chart must stay hourly (not degrade to a
+    // single day-granularity column) and show only the 00:00 bar. Only the Date
+    // clock is faked so waitFor polling keeps real timers.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-08-18T00:30:00'))
+    const hours: UsageStatsHour[] = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      input: hour === 0 ? 5 : 0,
+      cacheRead: 0,
+      output: hour === 0 ? 1 : 0,
+      requests: hour === 0 ? 1 : 0,
+      searches: 0,
+    }))
+    const value: UsageStatsValue = {
+      days: 1,
+      buckets: [day('2026-08-18', 5, 0, 1, 0, 1, hours)],
+      models: [],
+    }
+    const { container } = render(<UsageSection {...injected(remoteWith(value))} />)
+    await waitFor(() => expect(screen.getByText('今日 Tokens')).toBeTruthy())
+    expect(container.querySelectorAll(`.${styles['bar']}`)).toHaveLength(1)
+    expect(container.querySelector(`.${styles['chartHourly']}`)).not.toBeNull()
+    expect(screen.queryByText('23:00')).toBeNull()
+  })
+
+  it('draws only the elapsed hours at an early current hour', async () => {
+    // At 02:30 the cut is hour 2, so only 00:00–02:00 bars appear and the x-axis
+    // ends at 02:00 rather than any later hour.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-08-18T02:30:00'))
+    const hours: UsageStatsHour[] = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      input: hour === 1 ? 40 : 0,
+      cacheRead: 0,
+      output: hour === 1 ? 5 : 0,
+      requests: hour === 1 ? 1 : 0,
+      searches: 0,
+    }))
+    const value: UsageStatsValue = {
+      days: 1,
+      buckets: [day('2026-08-18', 40, 0, 5, 0, 1, hours)],
+      models: [],
+    }
+    const { container } = render(<UsageSection {...injected(remoteWith(value))} />)
+    await waitFor(() => expect(screen.getByText('今日 Tokens')).toBeTruthy())
+    expect(container.querySelectorAll(`.${styles['bar']}`)).toHaveLength(3)
+    expect(screen.getByText('00:00')).toBeTruthy()
+    expect(screen.getByText('02:00')).toBeTruthy()
+    expect(screen.queryByText('08:00')).toBeNull()
+    expect(screen.queryByText('23:00')).toBeNull()
   })
 
   it('renders metric cards with category totals', async () => {
