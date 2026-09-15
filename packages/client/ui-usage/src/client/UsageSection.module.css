@@ -40,8 +40,9 @@
   gap: 2px;
   padding: 3px;
   background: var(--dsw-alias-bg-layer-2);
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 999px;
+  corner-shape: round;
 }
 
 .rangeButton {
@@ -50,6 +51,7 @@
   color: var(--dsw-alias-label-secondary);
   padding: 5px 14px;
   border-radius: 999px;
+  corner-shape: round;
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
@@ -85,7 +87,7 @@
   gap: 8px;
   padding: 16px 18px;
   background: var(--dsw-alias-bg-layer-2);
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 12px;
   transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
 }
@@ -107,6 +109,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  corner-shape: round;
   background: var(--cat-color);
   flex-shrink: 0;
 }
@@ -135,7 +138,7 @@
   position: relative;
   padding: 18px 20px 16px;
   background: var(--dsw-alias-bg-layer-2);
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 12px;
 }
 
@@ -194,7 +197,7 @@
   position: absolute;
   left: 0;
   right: 0;
-  height: 1px;
+  height: 0.5px;
   background: var(--dsw-alias-border-l1);
   opacity: 0.35;
 }
@@ -259,7 +262,7 @@
   left: 50%;
   bottom: 0;
   width: 50%;
-  height: 1px;
+  height: 0.5px;
   background: var(--dsw-alias-border-l1);
   transform: translateX(-50%);
 }
@@ -369,7 +372,7 @@
 
 .retryButton {
   align-self: flex-start;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
   padding: 6px 16px;

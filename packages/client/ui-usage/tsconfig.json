@@ -18,9 +18,6 @@
       "path": "../../session/usage-stats"
     },
     {
-      "path": "../../runtime-diagnostics/invariants"
-    },
-    {
       "path": "../../typert/protocol"
     },
     {

@@ -57,7 +57,7 @@ describe('UsageSection', () => {
       models: [],
     }
     render(<UsageSection {...injected(remoteWith(value))} />)
-    await waitFor(() => expect(screen.getByText('用量')).toBeTruthy())
+    await waitFor(() => { expect(screen.getByText('用量')).toBeTruthy() })
     // Title carries the period token total (input + output = 2,400 across the
     // window); the chart legend names the three series.
     expect(screen.getAllByText((_, el) => el?.textContent?.startsWith('今日 Tokens') === true).length).toBeGreaterThanOrEqual(1)
@@ -82,9 +82,9 @@ describe('UsageSection', () => {
       },
     }
     render(<UsageSection {...injected(remote)} />)
-    await waitFor(() => expect(screen.getByRole('button', { name: '7天' })).toBeTruthy())
+    await waitFor(() => { expect(screen.getByRole('button', { name: '7天' })).toBeTruthy() })
     fireEvent.click(screen.getByRole('button', { name: '7天' }))
-    await waitFor(() => expect(requests).toContainEqual({ days: 7, models: [] }))
+    await waitFor(() => { expect(requests).toContainEqual({ days: 7, models: [] }) })
   })
 
   it('treats today as a one-day window', async () => {
@@ -98,9 +98,9 @@ describe('UsageSection', () => {
     render(<UsageSection {...injected(remote)} />)
     // The section defaults to the single-day today view, so its first load
     // requests today's date as a one-day window.
-    await waitFor(() => expect(requests).toHaveLength(1))
+    await waitFor(() => { expect(requests).toHaveLength(1) })
     expect(requests[0]).toMatchObject({ days: 1, models: [] })
-    expect(requests[0].date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(requests[0]?.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 
   it('shows only today when today is the selected window', async () => {
@@ -110,7 +110,7 @@ describe('UsageSection', () => {
       models: [],
     }
     render(<UsageSection {...injected(remoteWith(value))} />)
-    await waitFor(() => expect(screen.getByRole('button', { name: '今天' })).toBeTruthy())
+    await waitFor(() => { expect(screen.getByRole('button', { name: '今天' })).toBeTruthy() })
     // Today's grand total (input + output = 490) sits next to the chart title.
     expect(screen.getAllByText((_, el) => el?.textContent?.includes('490') === true).length).toBeGreaterThanOrEqual(1)
   })
@@ -118,7 +118,7 @@ describe('UsageSection', () => {
   it('shows the empty state when the window has no usage', async () => {
     const value: UsageStatsValue = { days: 7, buckets: [day('2026-08-18', 0, 0, 0)], models: [] }
     render(<UsageSection {...injected(remoteWith(value))} />)
-    await waitFor(() => expect(screen.getByText('这段时间还没有 token 用量')).toBeTruthy())
+    await waitFor(() => { expect(screen.getByText('这段时间还没有 token 用量')).toBeTruthy() })
   })
 
   it('shows cache hit and input miss as separate tooltip rows', async () => {
@@ -128,11 +128,11 @@ describe('UsageSection', () => {
       models: [],
     }
     const { container } = render(<UsageSection {...injected(remoteWith(value))} />)
-    await waitFor(() => expect(screen.getByText('今日 Tokens')).toBeTruthy())
+    await waitFor(() => { expect(screen.getByText('今日 Tokens')).toBeTruthy() })
     const bar = container.querySelector(`.${styles['bar']}`) as HTMLElement
     expect(bar).toBeTruthy()
     fireEvent.mouseEnter(bar)
-    await waitFor(() => expect(screen.getAllByText('输入（未命中）').length).toBeGreaterThanOrEqual(1))
+    await waitFor(() => { expect(screen.getAllByText('输入（未命中）').length).toBeGreaterThanOrEqual(1) })
     expect(screen.getAllByText('输入（命中缓存）').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('输出').length).toBeGreaterThanOrEqual(1)
     // The tooltip also shows the per-day total.
@@ -148,10 +148,10 @@ describe('UsageSection', () => {
       },
     }
     render(<UsageSection {...injected(remote)} />)
-    await waitFor(() => expect(screen.getByText(/socket closed/)).toBeTruthy())
+    await waitFor(() => { expect(screen.getByText(/socket closed/)).toBeTruthy() })
     expect(calls).toBe(1)
     fireEvent.click(screen.getByRole('button', { name: '重试' }))
-    await waitFor(() => expect(calls).toBe(2))
+    await waitFor(() => { expect(calls).toBe(2) })
   })
 
   it('refetches on every entry instead of showing the first visit stale totals', async () => {
@@ -172,14 +172,14 @@ describe('UsageSection', () => {
     // (a fresh mount against the same controller) must reload rather than
     // resurface the old totals.
     const first = render(<UsageSection {...shared} />)
-    await waitFor(() => expect(screen.getAllByText((_, el) => el?.textContent?.includes('101') === true).length).toBeGreaterThan(0))
+    await waitFor(() => { expect(screen.getAllByText((_, el) => el?.textContent?.includes('101') === true).length).toBeGreaterThan(0) })
     expect(calls).toBe(1)
     first.unmount()
     value = 250
     render(<UsageSection {...shared} />)
-    await waitFor(() => expect(calls).toBeGreaterThan(1))
-    await waitFor(() => expect(screen.getAllByText((_, el) => el?.textContent?.includes('251') === true).length).toBeGreaterThan(0))
-    expect(screen.queryAllByText((_, el) => el?.textContent?.startsWith('每日 Tokens') === true && el?.textContent?.includes('101') === true)).toHaveLength(0)
+    await waitFor(() => { expect(calls).toBeGreaterThan(1) })
+    await waitFor(() => { expect(screen.getAllByText((_, el) => el?.textContent?.includes('251') === true).length).toBeGreaterThan(0) })
+    expect(screen.queryAllByText((_, el) => el?.textContent?.startsWith('每日 Tokens') === true && el?.textContent?.includes('101'))).toHaveLength(0)
   })
 
   it('renders per-hour bars up to the current hour when the window is today', async () => {
@@ -202,7 +202,7 @@ describe('UsageSection', () => {
       models: [],
     }
     const { container } = render(<UsageSection {...injected(remoteWith(value))} />)
-    await waitFor(() => expect(screen.getByText('今日 Tokens')).toBeTruthy())
+    await waitFor(() => { expect(screen.getByText('今日 Tokens')).toBeTruthy() })
     // Only hours up to the cut (00:00–15:00, inclusive) are drawn — never the
     // whole 24-hour day.
     expect(container.querySelectorAll(`.${styles['bar']}`)).toHaveLength(16)
@@ -233,7 +233,7 @@ describe('UsageSection', () => {
       models: [],
     }
     const { container } = render(<UsageSection {...injected(remoteWith(value))} />)
-    await waitFor(() => expect(screen.getByText('今日 Tokens')).toBeTruthy())
+    await waitFor(() => { expect(screen.getByText('今日 Tokens')).toBeTruthy() })
     expect(container.querySelectorAll(`.${styles['bar']}`)).toHaveLength(1)
     expect(container.querySelector(`.${styles['chartHourly']}`)).not.toBeNull()
     expect(screen.queryByText('23:00')).toBeNull()
@@ -258,7 +258,7 @@ describe('UsageSection', () => {
       models: [],
     }
     const { container } = render(<UsageSection {...injected(remoteWith(value))} />)
-    await waitFor(() => expect(screen.getByText('今日 Tokens')).toBeTruthy())
+    await waitFor(() => { expect(screen.getByText('今日 Tokens')).toBeTruthy() })
     expect(container.querySelectorAll(`.${styles['bar']}`)).toHaveLength(3)
     expect(screen.getByText('00:00')).toBeTruthy()
     expect(screen.getByText('02:00')).toBeTruthy()
@@ -280,7 +280,7 @@ describe('UsageSection', () => {
       searches: 0,
     }))
     const remote: UsageStatsRemote = {
-      stats: (request) => Promise.resolve<RemoteResult<UsageStatsValue>>({
+      stats: request => Promise.resolve<RemoteResult<UsageStatsValue>>({
         ok: true,
         value: {
           days: 1,
@@ -290,12 +290,12 @@ describe('UsageSection', () => {
       }),
     }
     const { container } = render(<UsageSection {...injected(remote)} />)
-    await waitFor(() => expect(screen.getByText('今日 Tokens')).toBeTruthy())
+    await waitFor(() => { expect(screen.getByText('今日 Tokens')).toBeTruthy() })
     // Open the dropdown calendar and pick a past day (relative to the fake
     // today); the grid anchors to the selected month, which is today's month.
     fireEvent.click(screen.getByLabelText('选择日期'))
     fireEvent.click(screen.getByRole('button', { name: '2026-08-16' }))
-    await waitFor(() => expect(container.querySelectorAll(`.${styles['bar']}`)).toHaveLength(24))
+    await waitFor(() => { expect(container.querySelectorAll(`.${styles['bar']}`)).toHaveLength(24) })
     // The past day draws its full day and reaches the day's last hour, instead
     // of cutting to the current time like the today view.
     expect(screen.getByText('00:00')).toBeTruthy()
@@ -316,7 +316,7 @@ describe('UsageSection', () => {
       models: [],
     }
     render(<UsageSection {...injected(remoteWith(value))} />)
-    await waitFor(() => expect(screen.getByText('用量')).toBeTruthy())
+    await waitFor(() => { expect(screen.getByText('用量')).toBeTruthy() })
     // Metric card values: input=2000, cacheRead=400, output=400, requests=12.
     expect(screen.getAllByText((_, el) => el?.textContent === '2,000').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText((_, el) => el?.textContent === '400').length).toBeGreaterThanOrEqual(1)

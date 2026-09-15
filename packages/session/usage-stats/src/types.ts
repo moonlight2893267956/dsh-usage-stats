@@ -68,8 +68,8 @@ export interface UsageStatsRequest {
   readonly date?: string
   /**
    * Restrict the aggregate to these models. When omitted or empty the totals
-   * cover every model. Model ids come from the assistant-message provenance
-   * (`message.source.model`).
+   * cover every model. Model ids come from the assistant message's
+   * `message.source.model`.
    */
   readonly models?: readonly string[] | null
 }

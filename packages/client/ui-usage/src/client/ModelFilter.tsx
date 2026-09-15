@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import styles from './ModelFilter.module.css'
 
 export interface ModelFilterProps {
@@ -6,6 +7,8 @@ export interface ModelFilterProps {
   readonly label: string
   /** Text for the "all models" option. */
   readonly allLabel: string
+  /** Trigger text template for a non-empty selection, with one `{count}` placeholder. */
+  readonly countLabel: string
   /** Available model ids. */
   readonly models: readonly string[]
   /** Currently selected model ids; empty means every model. */
@@ -15,7 +18,7 @@ export interface ModelFilterProps {
 }
 
 /** A compact dropdown that lets the user pick one or more models. */
-export function ModelFilter({ label, allLabel, models, selected, onChange }: ModelFilterProps): JSX.Element {
+export function ModelFilter({ label, allLabel, countLabel, models, selected, onChange }: ModelFilterProps): ReactNode {
   const id = useId()
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -28,11 +31,11 @@ export function ModelFilter({ label, allLabel, models, selected, onChange }: Mod
       }
     }
     document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    return () => { document.removeEventListener('mousedown', handler) }
   }, [open])
 
   const isAll = selected.length === 0
-  const triggerText = isAll ? allLabel : `${selected.length} 个模型`
+  const triggerText = isAll ? allLabel : countLabel.replace('{count}', String(selected.length))
 
   function toggle(model: string): void {
     const next = selected.includes(model)
@@ -55,7 +58,7 @@ export function ModelFilter({ label, allLabel, models, selected, onChange }: Mod
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={`${id}-listbox`}
-        onClick={() => setOpen(v => !v)}
+        onClick={() => { setOpen(v => !v) }}
       >
         <span className={styles['triggerText']} title={triggerText}>{triggerText}</span>
         <svg className={styles['chevron']} width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -81,7 +84,7 @@ export function ModelFilter({ label, allLabel, models, selected, onChange }: Mod
               key={model}
               checked={selected.includes(model)}
               label={model}
-              onClick={() => toggle(model)}
+              onClick={() => { toggle(model) }}
             />
           ))}
         </div>
@@ -96,7 +99,7 @@ interface OptionProps {
   readonly onClick: () => void
 }
 
-function Option({ checked, label, onClick }: OptionProps): JSX.Element {
+function Option({ checked, label, onClick }: OptionProps): ReactNode {
   return (
     <button
       type="button"

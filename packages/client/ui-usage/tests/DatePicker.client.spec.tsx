@@ -19,7 +19,7 @@ function baseProps(overrides: Partial<DatePickerProps> = {}): DatePickerProps {
     value: '2026-08-18',
     max: '2026-08-18',
     label: '选择日期',
-    formatValue: (key) => key,
+    formatValue: key => key,
     monthLabel: (year, month) => `${year}-${month + 1}`,
     weekdays: ['一', '二', '三', '四', '五', '六', '日'],
     todayLabel: '今天',

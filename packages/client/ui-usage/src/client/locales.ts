@@ -20,6 +20,7 @@ export const zh = {
   'chart.title.today': '今日 Tokens',
   'chart.title.day': '{date} Tokens',
   'chart.pickDate': '选择日期',
+  'chart.dayLabel': '{month}月{day}日',
   'datePicker.monthYear': '{year}年{month}月',
   'datePicker.weekdays': '一,二,三,四,五,六,日',
   'datePicker.today': '今天',
@@ -39,6 +40,7 @@ export const zh = {
   'state.empty': '这段时间还没有 token 用量',
   'model.title': '模型',
   'model.all': '全部模型',
+  'model.count': '{count} 个模型',
 } satisfies Record<string, string>
 
 /** The usage namespace key union. */
@@ -71,6 +73,7 @@ export const en = {
   'chart.title.today': 'Tokens today',
   'chart.title.day': '{date} tokens',
   'chart.pickDate': 'Pick a date',
+  'chart.dayLabel': '{month}/{day}',
   'datePicker.monthYear': '{month}/{year}',
   'datePicker.weekdays': 'Mo,Tu,We,Th,Fr,Sa,Su',
   'datePicker.today': 'Today',
@@ -90,4 +93,5 @@ export const en = {
   'state.empty': 'No token usage in this window yet',
   'model.title': 'Model',
   'model.all': 'All models',
+  'model.count': '{count} models',
 } satisfies Record<UsageKey, string>

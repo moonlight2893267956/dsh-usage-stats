@@ -53,10 +53,12 @@ function formatFull(value: number): string {
   return value.toLocaleString()
 }
 
-/** `YYYY-MM-DD` rendered as the locale month-day label. */
-function dateLabel(key: string): string {
+/** `YYYY-MM-DD` rendered through the locale's `chart.dayLabel` template. */
+function dateLabel(template: string, key: string): string {
   const parts = key.split('-')
-  return `${Number(parts[1])}月${Number(parts[2])}日`
+  return template
+    .replace('{month}', String(Number(parts[1])))
+    .replace('{day}', String(Number(parts[2])))
 }
 
 /** Local `YYYY-MM-DD` key for now; identifies the today view and seeds the date picker. */
@@ -124,6 +126,7 @@ function buildChartBuckets(
   isSingleDay: boolean,
   isToday: boolean,
   nowHour: number,
+  dayTemplate: string,
 ): ChartBucket[] {
   if (isSingleDay) {
     const day = buckets[0]
@@ -142,7 +145,7 @@ function buildChartBuckets(
   }
   return buckets.map(b => ({
     key: b.date,
-    label: dateLabel(b.date),
+    label: dateLabel(dayTemplate, b.date),
     input: b.input,
     cacheRead: b.cacheRead,
     output: b.output,
@@ -214,7 +217,8 @@ function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
   // even when the current-hour cut leaves a single bar (e.g. just past midnight)
   // — otherwise a trimmed-to-one-bar day would silently degrade to day granularity.
   const isHourly = isSingleDay && buckets[0]?.hours !== undefined
-  const chartBuckets = buildChartBuckets(buckets, isSingleDay, isToday, nowHour)
+  const dayTemplate = t('chart.dayLabel')
+  const chartBuckets = buildChartBuckets(buckets, isSingleDay, isToday, nowHour, dayTemplate)
   let maxBucket = 1
   for (const cb of chartBuckets) {
     const total = bucketTotal(cb)
@@ -239,25 +243,26 @@ function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
         <div className={styles['controls']}>
           {availableModels.length > 0 && (
             <ModelFilter
-              label={t('model.title' as keyof typeof en)}
-              allLabel={t('model.all' as keyof typeof en)}
+              label={t('model.title')}
+              allLabel={t('model.all')}
+              countLabel={t('model.count')}
               models={availableModels}
               selected={selectedModels}
-              onChange={next => controller.setModels(next)}
+              onChange={(next) => { controller.setModels(next) }}
             />
           )}
           <div className={styles['rangeControls']}>
             <DatePicker
               value={state.date ?? today}
               max={today}
-              label={t('chart.pickDate' as keyof typeof en)}
-              formatValue={dateLabel}
-              monthLabel={(year, month) => t('datePicker.monthYear' as keyof typeof en).replace('{year}', String(year)).replace('{month}', String(month + 1))}
-              weekdays={t('datePicker.weekdays' as keyof typeof en).split(',')}
-              todayLabel={t('datePicker.today' as keyof typeof en)}
-              prevLabel={t('datePicker.prevMonth' as keyof typeof en)}
-              nextLabel={t('datePicker.nextMonth' as keyof typeof en)}
-              onChange={(date) => controller.setDate(date)}
+              label={t('chart.pickDate')}
+              formatValue={key => dateLabel(dayTemplate, key)}
+              monthLabel={(year, month) => t('datePicker.monthYear').replace('{year}', String(year)).replace('{month}', String(month + 1))}
+              weekdays={t('datePicker.weekdays').split(',')}
+              todayLabel={t('datePicker.today')}
+              prevLabel={t('datePicker.prevMonth')}
+              nextLabel={t('datePicker.nextMonth')}
+              onChange={(date) => { controller.setDate(date) }}
             />
             <div className={styles['range']} role="group" aria-label={t('chart.title')}>
               {RANGES.map(range => (
@@ -268,7 +273,7 @@ function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
                   aria-pressed={range === activeRange}
                   onClick={() => { if (range === 1) controller.setDate(today); else controller.setDays(range) }}
                 >
-                  {t(`range.${range}` as keyof typeof en)}
+                  {t(`range.${range}`)}
                 </button>
               ))}
             </div>
@@ -311,7 +316,7 @@ function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
       <div className={`${styles['chart']} ${isHourly ? styles['chartHourly'] : ''}`}>
         <h3 className={styles['chartTitle']}>
           {isSingleDay
-            ? (isToday ? t('chart.title.today') : t('chart.title.day').replace('{date}', dateLabel(state.date ?? today)))
+            ? (isToday ? t('chart.title.today') : t('chart.title.day').replace('{date}', dateLabel(dayTemplate, state.date ?? today)))
             : t('chart.title')}
           {grand > 0 && <span className={styles['chartTotal']}>{` ${formatFull(grand)}`}</span>}
         </h3>

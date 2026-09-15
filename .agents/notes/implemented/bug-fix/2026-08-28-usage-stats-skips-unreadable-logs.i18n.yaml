@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-28-usage-stats-skips-unreadable-logs.md
+2026-08-28-usage-stats-skips-unreadable-logs.md: 2cb4b9ec198c752dfe667812d7c19026af00ec26
+2026-08-28-usage-stats-skips-unreadable-logs.zh.md: 1effb6f4c069a4d0ef33a61df87061f14d3e05d3

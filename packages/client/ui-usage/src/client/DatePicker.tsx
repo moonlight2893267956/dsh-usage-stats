@@ -107,7 +107,7 @@ export function DatePicker(props: DatePickerProps): ReactNode {
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={label}
-        onClick={() => setOpen(v => !v)}
+        onClick={() => { setOpen(v => !v) }}
       >
         <svg className={styles['calIcon']} width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
@@ -122,13 +122,13 @@ export function DatePicker(props: DatePickerProps): ReactNode {
       {open && (
         <div className={styles['panel']} role="dialog" aria-label={monthHead}>
           <div className={styles['head']}>
-            <button type="button" className={styles['nav']} aria-label={prevLabel} onClick={() => shiftMonth(-1)}>
+            <button type="button" className={styles['nav']} aria-label={prevLabel} onClick={() => { shiftMonth(-1) }}>
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                 <path d="M10 4L6 8L10 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
             <span className={styles['title']}>{monthHead}</span>
-            <button type="button" className={styles['nav']} aria-label={nextLabel} onClick={() => shiftMonth(1)}>
+            <button type="button" className={styles['nav']} aria-label={nextLabel} onClick={() => { shiftMonth(1) }}>
               <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                 <path d="M6 4L10 8L6 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -159,7 +159,7 @@ export function DatePicker(props: DatePickerProps): ReactNode {
                   aria-current={isToday ? 'date' : undefined}
                   aria-pressed={selected}
                   disabled={disabled}
-                  onClick={() => pick(day)}
+                  onClick={() => { pick(day) }}
                 >
                   {day}
                 </button>

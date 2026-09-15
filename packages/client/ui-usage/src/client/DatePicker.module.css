@@ -19,8 +19,9 @@
   padding: 0 12px;
   color: var(--dsw-alias-label-primary);
   background: var(--dsw-alias-bg-layer-2);
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 999px;
+  corner-shape: round;
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
@@ -64,7 +65,7 @@
   min-width: 236px;
   padding: 12px;
   background: var(--dsw-alias-bg-layer-3);
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 12px;
   box-shadow: 0 12px 32px var(--dsw-alias-bg-mask-2);
   animation: panelIn 0.14s ease-out;
@@ -163,7 +164,7 @@
 .foot {
   margin-top: 10px;
   padding-top: 8px;
-  border-top: 1px solid var(--dsw-alias-border-l1);
+  border-top: 0.5px solid var(--dsw-alias-border-l1);
 }
 
 .today {

@@ -68,10 +68,10 @@ function usageEvent(time: number, usage: TokenUsage, model = 'test'): SessionEve
     content: [{ type: 'text', text: 'answer' }],
     source: { provider: 'test', model },
   })
-  return { type: 'assistant/message', seq: SessionSeq(seq++), time, data: { turn: 1, step: 1, message, stream: [], usage } }
+  return { type: 'assistant/message', seq: SessionSeq(seq++), time, surfaceOp: 'append', data: { turn: 1, step: 1, message, stream: [], usage } }
 }
 function bareMessageEvent(time: number): SessionEvent {
-  return { type: 'assistant/message', seq: SessionSeq(seq++), time, data: { turn: 1, step: 1, message: MESSAGE, stream: [] } }
+  return { type: 'assistant/message', seq: SessionSeq(seq++), time, surfaceOp: 'append', data: { turn: 1, step: 1, message: MESSAGE, stream: [] } }
 }
 function searchEvent(time: number): SessionEvent {
   return { type: 'tool/call', seq: SessionSeq(seq++), time, data: { turn: 1, step: 1, callId: ToolCallId(`call-${seq}`), name: 'web_search', arguments: '{}' } }
@@ -101,7 +101,7 @@ function stubPersistence(sessions: StubSession[], openCalls?: { value: number })
         // Mirror the real SessionHandle contract: the handle always carries the
         // exact fork-inherited prefix length (0 for an unseeded session).
         inheritedEventCount: 0,
-        read: (offset = 0) => Promise.resolve(session.events.slice(offset)),
+        read: (offset = 0) => Promise.resolve({ events: session.events.slice(offset) }),
         close: () => Promise.resolve(),
       })
     },

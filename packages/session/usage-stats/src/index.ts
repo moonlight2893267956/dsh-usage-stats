@@ -254,7 +254,7 @@ export class UsageStatsService extends TypertRemoteService {
           // them so a forked child never double-counts the tokens its parent
           // already folded. Never rewind below the live fold cursor.
           foldFrom = Math.max(fromSeq, reader.inheritedEventCount)
-          events = await reader.read(foldFrom)
+          events = (await reader.read(foldFrom)).events
         } finally {
           await reader.close()
         }
@@ -320,20 +320,18 @@ export class UsageStatsService extends TypertRemoteService {
       hour.output += usage.outputTokens
       hour.requests += 1
       const model = event.data.message.source.model
-      if (model !== undefined) {
-        const totals = day.models.get(model) ?? emptyModel()
-        totals.input += usage.inputTokens + (usage.cacheReadTokens ?? 0)
-        totals.cacheRead += usage.cacheReadTokens ?? 0
-        totals.output += usage.outputTokens
-        totals.requests += 1
-        day.models.set(model, totals)
-        const hourTotals = hour.models.get(model) ?? emptyModel()
-        hourTotals.input += usage.inputTokens + (usage.cacheReadTokens ?? 0)
-        hourTotals.cacheRead += usage.cacheReadTokens ?? 0
-        hourTotals.output += usage.outputTokens
-        hourTotals.requests += 1
-        hour.models.set(model, hourTotals)
-      }
+      const totals = day.models.get(model) ?? emptyModel()
+      totals.input += usage.inputTokens + (usage.cacheReadTokens ?? 0)
+      totals.cacheRead += usage.cacheReadTokens ?? 0
+      totals.output += usage.outputTokens
+      totals.requests += 1
+      day.models.set(model, totals)
+      const hourTotals = hour.models.get(model) ?? emptyModel()
+      hourTotals.input += usage.inputTokens + (usage.cacheReadTokens ?? 0)
+      hourTotals.cacheRead += usage.cacheReadTokens ?? 0
+      hourTotals.output += usage.outputTokens
+      hourTotals.requests += 1
+      hour.models.set(model, hourTotals)
     } else if (event.type === 'tool/call' && event.data.name === 'web_search') {
       const day = this.day(event.time)
       day.searches += 1

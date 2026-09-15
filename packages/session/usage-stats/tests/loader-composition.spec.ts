@@ -72,7 +72,7 @@ function bucketFor(value: UsageStatsValue, date: string) {
 async function readStoredEventCount(ctx: Context, id: SessionId): Promise<number> {
   const reader = await ctx.sessionPersistence.open(id, 'read')
   try {
-    return (await reader.read()).length
+    return (await reader.read()).events.length
   } finally {
     await reader.close()
   }

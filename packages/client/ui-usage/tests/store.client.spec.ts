@@ -51,7 +51,7 @@ describe('UsageStatsStore', () => {
     // today's date (a one-day window), not a plain trailing window.
     expect(requests).toHaveLength(1)
     expect(requests[0]).toMatchObject({ days: 1, models: [] })
-    expect(requests[0].date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(requests[0]?.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 
   it('surfaces a carrier failure without losing the last good buckets', async () => {
@@ -98,7 +98,7 @@ describe('UsageStatsStore', () => {
   it('ignores a stale response that resolves after a newer load started', async () => {
     const resolvers: Array<() => void> = []
     const { remote } = fakeRemote(request => new Promise<RemoteResult<UsageStatsValue>>((resolve) => {
-      resolvers.push(() => resolve(ok(window(request.days, [day(`2026-08-0${request.days}`, request.days, 0)]))))
+      resolvers.push(() => { resolve(ok(window(request.days, [day(`2026-08-0${request.days}`, request.days, 0)]))) })
     }))
     const store = new UsageStatsStore(remote)
     void store.load()

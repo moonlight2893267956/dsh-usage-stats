@@ -1,34 +1,33 @@
+---
+description: "跨本设备所有会话的按天 token 用量总量，从持久化会话日志折叠而来，并通过 usageStats Remote 提供给客户端。"
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-usage-stats
 
 [English](README.md) | 中文
 
-跨会话的按天 token 用量统计，从持久化会话日志折叠而来，通过 Typert Remote 提供给客户端。日志即事实来源：每个 `assistant/message` 事件都携带该步骤的 token 计量，每个 `tool/call` 都带有工具名，因此聚合结果在重启后能从日志重新推导（回填历史），而不依赖进程内状态。聚合结果会被检查点化到 `usage_stats` 存储域，因此热启动会从持久化总量播种，只折叠增量部分，而非重扫每一条持久化日志。
+## 概述
 
-## `usageStats` Remote
+用这个包报告本设备花了多少 token，按天聚合、覆盖所有会话，而不只是当前打开的那一个。它把持久化会话日志折叠成按天的输入、缓存命中、输出 token 总量以及网络搜索次数，并通过 `usageStats` Remote 提供给客户端。因为日志就是事实来源，总量能跨重启存活并回填历史；存储检查点让热启动只折叠新事件。已删除的会话保留其贡献，无法读取的日志会被跳过而不是让查询失败。
 
-`ctx.usageStats` 是一个 Typert 远程服务，只有一个方法。
+## 目录
 
-### `stats(request: { days }): Promise<UsageStatsValue>`
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [延伸阅读](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与后续工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
-把每个会话新增的持久化事件折叠进按天总量，返回从最早到今天共 `days` 天的窗口。每个桶是一个本地自然日：
+-----
 
-- `input` —— 完整提示输入：未命中输入加缓存命中（含 `cacheRead`）。
-- `cacheRead` —— cache-read token（提示缓存命中——被复用的前缀）。
-- `output` —— 输出（补全）token。
-- `searches` —— 当天发起的 `web_search` 工具调用次数。
+<a id="use-this-package"></a>
+## 使用本包
 
-窗口长度被钳制到 `[1, 370]`；不可用值默认为 30。
+把本插件挂在它所读取的会话持久化旁边；`usageStats` Remote 命名空间随后为 Web GUI 的「用量」页提供服务。
 
-### 折叠语义
-
-- 聚合是**按日志（log-scoped）而非按接口（surface-scoped）**：后来被压缩对模型隐藏的 token 仍然计数，因为它们确实被消耗了。
-- 折叠是**增量的**：每次查询只折叠自上次折叠以来新增的事件（每个生命周期一个 seq 游标），所以冷启动后的第一次查询做回填，之后的查询很轻。每个生命周期还有一个日志 revision，用于跳过自上次折叠以来日志未推进的会话，因此热查询完全不读那些未变化日志的文件字节。
-- 聚合结果会被**检查点化**到 `usage_stats` 存储域：热启动（新进程、已有检查点）会从该域播种内存总量与逐会话折叠状态，然后只折叠增量；冷启动（没有检查点）则回填一次。检查点是单个全局记录，在每次有变动的折叠时原子写入；进程内仍以内存累加器作为热路径。
-- 已从设备删除的会话仍保留其贡献——它的 token 确实被消耗过。
-- 只读持久化日志；存活会话尚未落盘的尾部（最近几条事件）在写入前会稍有滞后。
-- 无法读取的会话日志会告警、跳过，并且只在内存里记录其 revision——绝不写入检查点——因此损坏日志会在下次重启时被重试（并再次告警）。
-
-## 组合
+### 最小配置
 
 ```yaml
 - id: usage-stats
@@ -44,8 +43,52 @@
       usage_stats: sqlite
 ```
 
-注入 `sessionPersistence`（该插件的全部用途）与 `storageDomain`（检查点的存储形式）。检查点域通过 `storage-domain` 的 `routes` 路由到某个后端；web 组合把 `usage_stats` 路由到 SQLite 后端，而后者会在激活时急切打开数据库，这正是该行放在挂载本插件的 profile 而非共享 base 的原因。没有 `storageDomain` 的组合会在激活时响亮失败，没有 `sessionPersistence` 则 fiber 一直 pending。
+该插件不声明任何配置。它注入 `sessionPersistence` 与 `storageDomain`：没有 `sessionPersistence` 时 fiber 一直 pending，没有 `storageDomain` 则激活时响亮失败。web 组合把 `usage_stats` 检查点域路由到 SQLite 后端，而该后端会在激活时打开数据库——这正是那一行属于挂载本插件的 profile 而非共享 base 的原因。
 
+### 各字段含义
+
+| 字段 | 含义 |
+|---|---|
+| `input` | 完整提示输入：未命中输入加缓存命中，因此已包含 `cacheRead` |
+| `cacheRead` | 提示缓存命中——被复用的前缀 |
+| `output` | 输出（补全）token |
+| `requests` | 携带用量的助手消息数，每次模型补全请求计一条 |
+| `searches` | 当天发起的 `web_search` 工具调用次数 |
+
+单日请求还会带 24 个按小时的桶；尾部窗口只带按天的桶。窗口长度被钳制到 `[1, 370]`，不可用值默认为 30。
+
+### 折叠语义
+
+折叠读取持久化日志，而不是模型可见的接口面，因此后来被压缩对模型隐藏的 token 仍然计数，因为它们确实被消耗了。每次查询只折叠自上次折叠以来新增的事件，并且每个生命周期的文件 revision 会跳过日志未推进的会话，所以热查询不读任何未变化的日志字节。
+
+### 失败与恢复
+
+查询不会因为某个会话日志损坏而失败：折叠会告警、跳过该会话，并且只在内存里记录其 revision，因此新进程会重试它。检查点丢失或过期只会在下次冷读时多回放一段日志尾部，绝不会丢数据，因为日志始终是权威。已从设备删除的会话保留其贡献。
+
+-----
+
+<a id="understand-the-implementation"></a>
+## 理解实现
+
+<details>
+<summary>实现内部细节 —— 点击展开</summary>
+
+`UsageStatsService` 维护一份内存聚合：按本地自然日索引的按天桶，每个桶带 24 个按小时的桶和一份按模型的映射，外加每个会话生命周期一个折叠游标和最近一次 revision。`foldAll` 遍历 `sessionPersistence.list()`，跳过 revision 未变化的生命周期，为其余每个日志打开读句柄，跳过 fork 继承的前缀（`inheritedEventCount`）以免 fork 出的子会话重复计入其父会话，并折叠游标之后的每个事件。`foldEvent` 把 `assistant/message` 的用量加到天、小时和模型累加器上，并统计名为 `web_search` 的 `tool/call` 事件。各次折叠串行排在一个 promise 尾部之后，因此并发查询共享同一次扫描。某次折叠有变动之后，服务会把整个检查点作为一个全局值写回 `usage_stats` 存储域——累计总量加上逐会话进度，不可读的会话被排除，以便重启后重试。
+
+</details>
+
+-----
+
+<a id="further-exploration"></a>
+## 延伸阅读
+
+- [dsh-session-persistence](../session-persistence/README.zh.md) —— 折叠所消费的持久化日志存储，提供列表、revision 与读取。
+- [dsh-storage-domain](../../storage/storage-domain/README.zh.md) —— 检查点域设施及其后端路由。
+- [dsh-client-ui-usage](../../client/ui-usage/README.zh.md) —— 渲染这些数字的「用量」设置页。
+
+-----
+
+<a id="model-experience"></a>
 ## 模型体验
 
 无。该插件只是把已记录的会话事件计算成面向客户端的读模型，不触碰任何提示词、消息、schema、流或工具结果。
@@ -56,6 +99,23 @@
 
 ## 已知限制与后续工作
 
-- **单个全局检查点记录** —— 检查点是单个全局值（累计总量加上逐会话折叠进度），以便原子落盘；每次有变动的折叠会整体重写该记录。介质是某个存储形式背后的检查点域，因此 schema 变更会提升域 `version`，而 SQLite 后端在打开时把它当作硬性的 `version-mismatch` 拒绝（它没有逐记录版本范围，也没有 `backupRecord`）。该数据完全可从日志重导出，因此恢复方式是清空该单元，而非做迁移。
-- **重启后对损坏日志的重试** —— 损坏日志只会让可读会话被检查点化，因此每个新进程都会重试（并再次告警）损坏日志。在单个进程内它只告警一次并被跳过。
-- **没有按用途或按模型细分** —— 桶按 token 类型（输入 / 缓存命中 / 输出）细分，而不是按调用用途（对话 / 压缩 / 会话标题）或按模型，因为持久化的 `assistant/message` 记录不携带请求的 `purpose` 字段。要进一步细分需要先把该字段记入日志。
+<a id="known-limitations-and-deferred-work"></a>
+
+
+这些限制界定了这些数字覆盖的范围以及检查点能恢复什么。它们是当前的包约束。
+
+- **单个全局检查点记录** —— 检查点是单个全局值，承载累计总量与逐会话折叠进度，因此一次有变动的折叠会重写全部内容。schema 变更会提升域 `version`，SQLite 后端在打开时把它当作硬性的 `version-mismatch` 拒绝；总量完全可从日志重导出，因此恢复方式是清空该单元而非迁移它。
+- **重启后对损坏日志的重试** —— 只有可读会话会进入检查点，因此每个新进程都会重试损坏日志并再次告警；在单个进程内它只告警一次并被跳过。
+- **没有按用途细分** —— 桶按 token 类型和按模型细分，但不按调用用途（对话、压缩、会话标题），因为持久化的 `assistant/message` 记录不携带请求的 `purpose` 字段；要进一步细分需要先把该字段记入日志。
+
+<a id="dev-note"></a>
+### 开发备注
+
+<details>
+<summary>维护者的工作上下文 —— 点击展开</summary>
+
+无。
+
+</details>
+
+**运行时不变式：** 不发布伴生入口。该包只聚合 `assistant/message` 用量记录与 `tool/call` 名称，它们的形状与追加顺序由 dsh-session 和 dsh-agent-loop 拥有并在运行时检查，并且通过 dsh-session-persistence 读取，其连续性与持久性也在那里检查；它自身不拥有可断言的事件关系。

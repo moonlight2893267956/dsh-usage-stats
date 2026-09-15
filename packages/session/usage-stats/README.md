@@ -1,34 +1,33 @@
+---
+description: "Per-day token-usage totals across every session on this device, folded from the durable session logs and served to clients over the usageStats Remote."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-usage-stats
 
 English | [中文](README.zh.md)
 
-Cross-session per-day token-usage statistics, folded from the durable session logs and served to clients over a Typert Remote. The log is the source of truth: every `assistant/message` event carries its step's token accounting and every `tool/call` names its tool, so the aggregate re-derives after a restart (backfilling history) instead of depending on process-local state. The aggregate is checkpointed into the `usage_stats` storage domain, so a warm start seeds from the persisted totals and folds only the deltas instead of rescanning every durable log.
+## Summary
 
-## The `usageStats` Remote
+Use this package to report how many tokens this device has spent, aggregated by day across every session rather than only the one on screen. It folds the durable session logs into per-day totals of input, cache-read, and output tokens plus web-search counts, and serves them to clients through the `usageStats` Remote. Because the log is the source of truth, totals survive restarts and backfill history; a storage checkpoint makes a warm start fold only new events. Deleted sessions keep their contribution, and unreadable logs are skipped rather than failing the query.
 
-`ctx.usageStats` is a Typert remote service with one method.
+## Table of Contents
 
-### `stats(request: { days }): Promise<UsageStatsValue>`
+- [Use this package](#use-this-package)
+- [Understand the implementation](#understand-the-implementation)
+- [Further Exploration](#further-exploration)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+- [Dev Note](#dev-note)
 
-Folds every session's newly durable events into the per-day totals, then returns the trailing `days`-long window, oldest first. Each bucket is one local calendar day:
+-----
 
-- `input` — full prompt input: uncached input plus cache-read hits (contains `cacheRead`).
-- `cacheRead` — cache-read tokens (prompt-cache hits — the reused prefix).
-- `output` — output (completion) tokens.
-- `searches` — `web_search` tool calls made that day.
+<a id="use-this-package"></a>
+## Use this package
 
-The window length is clamped to `[1, 370]`; an unusable value defaults to 30.
+Mount this plugin beside the session persistence it reads; the `usageStats` Remote namespace then serves the Web GUI's Usage page.
 
-### Fold semantics
-
-- The aggregate is **log-scoped, not surface-scoped**: tokens a later compaction hid from the model still count, because they were consumed.
-- The fold is **incremental**: each query folds only the events appended since the previous fold (a per-lifecycle seq cursor), so the first query after a cold start backfills and later ones are cheap. A per-lifecycle log revision skips sessions whose durable log did not advance since the last fold, so a warm query reads no unchanged log bytes at all.
-- The aggregate is **checkpointed** into the `usage_stats` storage domain: a warm start (new process, populated checkpoint) seeds the in-memory totals and per-session fold state from the domain, then folds only the deltas — a cold start with no checkpoint backfills once. The checkpoint is one global record written atomically per mutated fold; the in-memory accumulator stays the hot path inside one process.
-- A session deleted from the device keeps its contribution — its tokens were still consumed.
-- Only the durable log is read; a live session's unflushed tail (a few recent events) lags behind until it is written.
-- An unreadable session log warns, skips, and records its revision only in memory — never in the checkpoint — so a corrupt log is re-attempted (and re-warned) on the next restart.
-
-## Composition
+### Minimal configuration
 
 ```yaml
 - id: usage-stats
@@ -44,8 +43,52 @@ The window length is clamped to `[1, 370]`; an unusable value defaults to 30.
       usage_stats: sqlite
 ```
 
-Injects `sessionPersistence` (the plugin's whole purpose) and `storageDomain` (the checkpoint's storage form). The checkpoint domain routes to a backend through `storage-domain`'s `routes`; the web composition routes `usage_stats` to the SQLite backend, whose eager database open is why that row lives on the profile that mounts the plugin rather than on the shared base. Assemblies without `storageDomain` fail loud at activation, and without `sessionPersistence` the fiber stays pending.
+The plugin declares no config. It injects `sessionPersistence` and `storageDomain`: without `sessionPersistence` the fiber stays pending, and without `storageDomain` activation fails loud. The web composition routes the `usage_stats` checkpoint domain to the SQLite backend, whose database opens on activation — which is why that row belongs to the profile mounting this plugin rather than to the shared base.
 
+### What the figures mean
+
+| Field | Meaning |
+|---|---|
+| `input` | Full prompt input: uncached input plus cache-read hits, so it already contains `cacheRead` |
+| `cacheRead` | Prompt-cache hits — the reused prefix |
+| `output` | Output (completion) tokens |
+| `requests` | Assistant messages carrying usage, one per model completion request |
+| `searches` | `web_search` tool calls made that day |
+
+A single-day request also carries 24 hourly buckets; a trailing window carries per-day buckets only. The window length is clamped to `[1, 370]`, and an unusable value defaults to 30.
+
+### Fold semantics
+
+The fold reads the durable log, not the model-visible surface, so tokens a later compaction hid from the model still count because they were consumed. Each query folds only the events appended since the previous fold, and a per-lifecycle file revision skips sessions whose log did not advance, so a warm query reads no unchanged log bytes.
+
+### Failure and recovery
+
+A query never fails because one session log is corrupt: the fold warns, skips that session, and records its revision in memory only, so a fresh process retries it. A lost or stale checkpoint costs a longer tail replay on the next cold read and never loses data, because the logs remain the authority. A session deleted from the device keeps its contribution.
+
+-----
+
+<a id="understand-the-implementation"></a>
+## Understand the implementation
+
+<details>
+<summary>Implementation internals — click to expand</summary>
+
+`UsageStatsService` keeps one in-memory aggregate: per-day buckets keyed by local calendar day, each carrying 24 hourly buckets and a per-model map, plus a fold cursor and last-seen revision per session lifecycle. `foldAll` walks `sessionPersistence.list()`, skips lifecycles whose revision is unchanged, opens each remaining log for reading, skips the fork-inherited prefix (`inheritedEventCount`) so a forked child never double-counts its parent, and folds every event after the cursor. `foldEvent` adds `assistant/message` usage to the day, hour, and model accumulators, and counts `tool/call` events named `web_search`. Folds serialize behind one promise tail, so concurrent queries share a single scan. After a mutated fold the service writes the whole checkpoint back through the `usage_stats` storage domain as one global value — accumulated totals plus per-session progress, with unreadable sessions excluded so a restart re-attempts them.
+
+</details>
+
+-----
+
+<a id="further-exploration"></a>
+## Further Exploration
+
+- [dsh-session-persistence](../session-persistence/README.md) — the durable log store whose listings, revisions, and reads the fold consumes.
+- [dsh-storage-domain](../../storage/storage-domain/README.md) — the checkpoint domain facility and its backend routes.
+- [dsh-client-ui-usage](../../client/ui-usage/README.md) — the Usage settings page that renders these figures.
+
+-----
+
+<a id="model-experience"></a>
 ## Model Experience
 
 None, as the plugin only computes a client-facing read model of already-logged session events and touches no prompt, message, schema, stream, or tool result.
@@ -56,6 +99,23 @@ None; the plugin never assembles or sends provider requests.
 
 ## Known Limitations and Deferred Work
 
-- **One global checkpoint record** — the checkpoint is a single global value (accumulated totals plus per-session fold progress) so it lands atomically; every mutated fold rewrites the whole record. The medium is the checkpoint domain behind one storage form, so a schema change bumps the domain `version`, which the SQLite backend rejects as a hard `version-mismatch` at open (it has no per-record version scope and no `backupRecord`). The data is fully re-derivable from the logs, so recovery is a clear of the unit, not a migration.
-- **Unreadable-log retry across restarts** — a corrupt log stays check-pointed only for readable sessions, so each fresh process re-attempts (and re-warns on) the corrupt log. Within one process it is warned once and skipped.
-- **No per-purpose or per-model split** — buckets split by token kind (input / cache-read / output), not by call purpose (conversation / compaction / session-title) or model, because the durable `assistant/message` record does not carry the request's `purpose`. Splitting further would require logging that field first.
+<a id="known-limitations-and-deferred-work"></a>
+
+
+These limits define what the figures cover and what the checkpoint can recover. They are current package constraints.
+
+- **One global checkpoint record** — the checkpoint is a single global value holding accumulated totals and per-session fold progress, so one mutated fold rewrites all of it. A schema change raises the domain `version`, which the SQLite backend rejects as a hard `version-mismatch` at open; the totals are fully re-derivable from the logs, so recovery is clearing the unit rather than migrating it.
+- **Unreadable-log retry across restarts** — only readable sessions enter the checkpoint, so each fresh process re-attempts and re-warns on a corrupt log; within one process it is warned once and skipped.
+- **No per-purpose split** — buckets split by token kind and by model, but not by call purpose (conversation, compaction, session title), because the durable `assistant/message` record does not carry the request's `purpose`; splitting further requires logging that field first.
+
+<a id="dev-note"></a>
+### Dev Note
+
+<details>
+<summary>Working context for maintainers — click to expand</summary>
+
+None.
+
+</details>
+
+**Runtime invariant:** No companion is published. The package only aggregates `assistant/message` usage records and `tool/call` names whose shapes and append-only ordering are owned and runtime-checked by dsh-session and dsh-agent-loop, and reads them through dsh-session-persistence, whose contiguity and durability are checked there; it owns no event relation of its own to assert.

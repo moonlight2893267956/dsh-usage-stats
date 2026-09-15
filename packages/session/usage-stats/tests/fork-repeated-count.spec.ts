@@ -50,7 +50,7 @@ function dayKey(offsetDays: number): string {
 
 /** One assistant/message event with seq and usage, at the given time. */
 function usageEvent(seq: number, time: number, usage: TokenUsage): SessionEvent {
-  return { type: 'assistant/message', seq: SessionSeq(seq), time, data: { turn: 1, step: 1, message: MESSAGE, stream: [], usage } }
+  return { type: 'assistant/message', seq: SessionSeq(seq), time, surfaceOp: 'append', data: { turn: 1, step: 1, message: MESSAGE, stream: [], usage } }
 }
 
 function stubPersistence(sessions: StubSession[]): unknown {
@@ -71,7 +71,7 @@ function stubPersistence(sessions: StubSession[]): unknown {
         // Mirror the real SessionHandle contract: read returns seq >= offset, and
         // the handle carries the exact fork-inherited prefix length.
         inheritedEventCount: session.inheritedEventCount ?? 0,
-        read: (offset = 0) => Promise.resolve(session.events.slice(offset)),
+        read: (offset = 0) => Promise.resolve({ events: session.events.slice(offset) }),
         close: () => Promise.resolve(),
       })
     },
