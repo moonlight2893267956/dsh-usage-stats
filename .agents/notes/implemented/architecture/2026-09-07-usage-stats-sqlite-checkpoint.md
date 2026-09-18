@@ -4,6 +4,8 @@ Status: implemented
 
 English | [中文](2026-09-07-usage-stats-sqlite-checkpoint.zh.md)
 
+The shipped Web composition no longer routes the checkpoint to SQLite; see [usage-stats checkpoint rides the profile's storage backend](2026-09-18-usage-stats-checkpoint-backend.md) for the current medium and why the eager backend could not stay there. The sections below keep the checkpoint's design, which that note leaves unchanged.
+
 ## Problem
 
 `@deepseek-ai/dsh-usage-stats` folds cross-session per-day token usage out of the durable session logs into a process-local accumulator. The fold is incremental within one process, but the accumulator is not persisted: the first `stats` call after a restart backfills by scanning every durable log once, and a fresh process, a repeat visit, or a page reload in a new process each re-pay that full scan. On a device with many large logs this is a recurring cold-backfill cost that grows with usage history rather than with what changed since the last query.
@@ -15,7 +17,7 @@ Persist the fold into a `usage_stats` storage-domain checkpoint and route it thr
 - **One global record, no tables.** The checkpoint is a single global value holding the accumulated day/hour/model totals plus a per-session fold progress map (`<id>:<createdAt>` → `{ cursor, revision }`). A lone `global.set` is one atomic backend write; splitting totals and per-session progress across rows would let a crash persist a cursor ahead of its totals (a permanent under-count) or behind them (a double-count), so it is deliberately not per-record.
 - **Open and seed at `Service.init`.** The service injects `storageDomain`; init opens the domain, registers the close effect, seeds the in-memory accumulator from the persisted global (empty on a cold start), and folds only the delta on the next `stats`.
 - **Write back on a mutated fold.** After folding, when any session advanced, the checkpoint is rewritten atomically. The persisted per-session progress records only sessions that folded successfully; an unreadable log is never recorded, so a corrupt session is re-attempted (and re-warned) on the next restart — within one process it is warned once and skipped, as before.
-- **Route through `storage-domain`, not `session-query-sqlite`.** The latter serves full-text search, not usage aggregation. The web composition mounts `storage-sqlite` and routes `usage_stats` to the `sqlite` backend; the row lives on the web profile, not on base, because the SQLite backend opens its database eagerly on activation. No API or UI contract changes.
+- **Route through `storage-domain`, not `session-query-sqlite`.** The latter serves full-text search, not usage aggregation. The web composition leaves `usage_stats` on base's `json` default and a deployment that wants the SQLite medium mounts `storage-sqlite` and routes the domain to it in its own patch layer. No API or UI contract changes.
 
 ## Alternatives considered
 
@@ -26,7 +28,7 @@ Persist the fold into a `usage_stats` storage-domain checkpoint and route it thr
 
 ## Consequences
 
-- The web profile now mounts `storage-sqlite` (with `dshHomePath('storages/usage-stats.db')`) and restates `storage-domain`'s config to route `usage_stats` to `sqlite` while leaving base's `json` default for every other domain.
-- The `usage_stats` domain version-stamps as one unit. The SQLite backend has no per-record version scope and no `backupRecord`; `invalidRecords: 'backup-and-skip'` therefore falls back to fail-loud there. A checkpoint schema change bumps the domain `version`, which SQLite rejects as a hard `version-mismatch` at open — recovery is a unit clear, not a migration, because the data is fully re-derivable from the logs.
+- The web composition adds no storage rows: the `usage_stats` checkpoint writes through base's `storage-json` backend into `<dsh home>/storages`, and a deployment routing it to `sqlite` supplies that row itself.
+- Routed to SQLite, the `usage_stats` domain version-stamps as one unit. The SQLite backend has no per-record version scope and no `backupRecord`; `invalidRecords: 'backup-and-skip'` therefore falls back to fail-loud there. A checkpoint schema change bumps the domain `version`, which SQLite rejects as a hard `version-mismatch` at open — recovery is a unit clear, not a migration, because the data is fully re-derivable from the logs.
 - A corrupt log is re-attempted on every fresh process (it never advances the checkpoint), so an environment with a permanently corrupt log re-warns once per process rather than once ever.
 - The package injects `storageDomain`; assemblies that mount `usage-stats` without the storage stack now fail loud at activation.

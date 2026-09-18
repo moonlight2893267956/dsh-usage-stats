@@ -32,6 +32,11 @@ kind: "package-reference"
 ```yaml
 - id: usage-stats
   name: '@deepseek-ai/dsh-usage-stats'
+```
+
+想要检查点使用 SQLite 介质的部署，再加上下面两行；不加时 `usage_stats` 域沿用该组合的默认后端，也就是共享的 `json`。
+
+```yaml
 - id: storage-sqlite
   name: '@deepseek-ai/dsh-storage-sqlite'
   config:
@@ -43,7 +48,7 @@ kind: "package-reference"
       usage_stats: sqlite
 ```
 
-该插件不声明任何配置。它注入 `sessionPersistence` 与 `storageDomain`：没有 `sessionPersistence` 时 fiber 一直 pending，没有 `storageDomain` 则激活时响亮失败。web 组合把 `usage_stats` 检查点域路由到 SQLite 后端，而该后端会在激活时打开数据库——这正是那一行属于挂载本插件的 profile 而非共享 base 的原因。
+该插件不声明任何配置。它注入 `sessionPersistence` 与 `storageDomain`：没有 `sessionPersistence` 时 fiber 一直 pending，没有 `storageDomain` 则激活时响亮失败。随包发布的 web 组合让 `usage_stats` 沿用 `json` 默认值，因为 `storage-sqlite` 在激活时就会打开数据库，而该组合同时会打包纯浏览器 Worker 部署，其 `node:sqlite` 桩会拒绝该构造函数；把该域路由到 SQLite 属于后续 patch 层的选择。
 
 ### 各字段含义
 
@@ -104,7 +109,7 @@ kind: "package-reference"
 
 这些限制界定了这些数字覆盖的范围以及检查点能恢复什么。它们是当前的包约束。
 
-- **单个全局检查点记录** —— 检查点是单个全局值，承载累计总量与逐会话折叠进度，因此一次有变动的折叠会重写全部内容。schema 变更会提升域 `version`，SQLite 后端在打开时把它当作硬性的 `version-mismatch` 拒绝；总量完全可从日志重导出，因此恢复方式是清空该单元而非迁移它。
+- **单个全局检查点记录** —— 检查点是单个全局值，承载累计总量与逐会话折叠进度，因此一次有变动的折叠会重写全部内容。schema 变更会提升域 `version`：`json` 后端会把陈旧记录备份下来，而把该域路由到 SQLite 的部署会在打开时遇到硬性的 `version-mismatch`。总量完全可从日志重导出，因此恢复方式是清空该单元而非迁移它。
 - **重启后对损坏日志的重试** —— 只有可读会话会进入检查点，因此每个新进程都会重试损坏日志并再次告警；在单个进程内它只告警一次并被跳过。
 - **没有按用途细分** —— 桶按 token 类型和按模型细分，但不按调用用途（对话、压缩、会话标题），因为持久化的 `assistant/message` 记录不携带请求的 `purpose` 字段；要进一步细分需要先把该字段记入日志。
 

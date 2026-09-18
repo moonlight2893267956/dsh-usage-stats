@@ -11,8 +11,10 @@
 每一次上游 alpha 都要求本插件跟着改，逐版记录如下（最新在上）：
 
 - **v0.1.6-alpha.2**
-  - 上游 882 个提交，**插件源码零改动**：alpha.1 那轮门禁适配在 alpha.2 依然全绿（lint 0 error / `doc-sync` 41/41 / `hygiene` 16/16 / `typecheck` / 插件测试 46/46 / `test:gui` 6203 通过）。两个包只把 `version` 提到 `0.1.6-alpha.2`。
-  - 上游新增 `docs/module-graph.{md,zh.md,i18n.yaml}`（模块图门禁），新包必须出现在其中 → `wiring.patch` 从 23 个文件增至 **26 个**。
+  - 上游 882 个提交，**插件包源码零改动**：alpha.1 那轮门禁适配在 alpha.2 依然全绿（lint 0 error / `doc-sync` 41/41 / `hygiene` 16/16 / `typecheck` / 插件测试 46/46 / `test:gui` 6203 通过）。两个包只把 `version` 提到 `0.1.6-alpha.2`。
+  - **修掉一个自 alpha.1 就存在、本轮首次被 `test:web` 抓到的回归**：原接线在 Web profile 里挂载 `storage-sqlite` 并把 `usage_stats` 域路由过去，而 `storage-sqlite` 在构造函数里就打开数据库；web profile 同时也是纯浏览器 Worker 预览部署所组合的那个 profile，其 `node:sqlite` 是失败桩，于是 `apps/web/tests/preview-boot.e2e.ts` 报 `web-preview: node:sqlite.DatabaseSync is not available in the worker host` + `1 entry did not activate / usage-stats`。改为让 `usage_stats` 沿用 base 的 `json` 后端，SQLite 介质降级为部署自己加的 patch 层。检查点设计（单个全局记录、`Service.init` 播种、折叠后回写）不变。新增 Agent Note `2026-09-18-usage-stats-checkpoint-backend.*` 记录这次介质反转，并在旧 note 顶部交叉链接。
+  - 新增 Usage 设置导航项后，15 个 `apps/web/tests/expected/**` 的 aria golden 需要重录（`DSH_SNAPSHOT=refresh`）；这 15 个文件已随 `wiring.patch` 一起提供。
+  - 上游新增 `docs/module-graph.{md,zh.md,i18n.yaml}`（模块图门禁），新包必须出现在其中。
   - 接线冲突点：上游在同一批文件里新增了 plugin-manager / office-to-pdf 的接线 —— `packages/api/remotes` 的 `pluginManagerRemote` / `officeToPdfRemote` 导入与 `$mount` 列表、`packages/bundle/web-app/cordis.patch.yml` 的 `ui-plugin-manager` 行。需与本插件接线**两侧都保留**，不是二选一。
   - `packages/client/tsdown.client.ts`：上游重写为按来源文件名切 chunk（`clientConfig` 多一个 `clientBanner` 参数、入口 banner 改为按 chunk 生成的函数、`chunkFileNames: 'client.[name].js'`）。本插件的 `REPOSITORY_ROOT` 查找补丁重放在新实现之上；插件没有动态 `import()`，因此不产生额外 chunk，`files` 列表无需跟着改。
   - 上游放松了 Agent Note 规则（`docs/AGENTS.md`）：机械／局部改动（含局部 UI 改动）不再强制要求 note。
@@ -54,14 +56,14 @@ packages/client/ui-usage/       Client 包：@deepseek-ai/dsh-client-ui-usage（
   ├─ tests/                      组件 + store + DatePicker 测试
   └─ README.md / README.zh.md
 .agents/notes/                 插件相关的 Agent Note（中英 + i18n 记录）
-wiring.patch                   应用进 monorepo 的接线改动（26 个文件，见下）
+wiring.patch                   应用进 monorepo 的接线改动（41 个文件，见下）
 ```
 
 ## 设计要点
 
 - **数据源是持久化会话日志**（每条 `assistant/message` 带 `usage` 与 `time`），Host 按天聚合并通过 Typert Remote `usageStats.stats()` 暴露给浏览器。日志本身即持久存储，因此**重启不丢、近 N 天历史可回填**。
 - **增量折叠**：`sessionPersistence.list()` 列出会话及其 `revision`，revision 未变则整段跳过；否则 `open(id, 'read')` 后 `read(foldFrom)` 只读游标之后的事件，按 `event.time` 归入当天桶。`foldFrom = max(cursor, reader.inheritedEventCount)`，因此在 fork 出的子会话里**不会重复计入父会话已折叠的 token**。
-- **检查点**：聚合结果与逐会话折叠进度写入 `usage_stats` 存储域（web 组合把它路由到 SQLite 后端）。冷启动回填一次，热启动只折叠增量；检查点是派生物，丢了只是多回放一段日志。无法读取的会话日志会告警 + 跳过，且**只记为内存 revision**，下次重启重试。
+- **检查点**：聚合结果与逐会话折叠进度写入 `usage_stats` 存储域（web 组合让该域沿用 base 的 `json` 后端，落到 `<dsh home>/storages`）。冷启动回填一次，热启动只折叠增量；检查点是派生物，丢了只是多回放一段日志。无法读取的会话日志会告警 + 跳过，且**只记为内存 revision**，下次重启重试。想让检查点走 SQLite 的部署，自己在后续 patch 层加 `storage-sqlite` 行并把该域路由到 `sqlite`（见 `packages/session/usage-stats/README.md` 的最小配置）。
 - **统计口径**：输入 = `inputTokens + cacheReadTokens`（输入已含命中，合计 = 输入 + 输出，避免与缓存命中重复计），缓存命中 = `cacheReadTokens`，输出 = `outputTokens`；`web_search` 工具调用计搜索数。单天窗口（`days=1` 或指定 `date`）额外返回 24 条逐小时明细。
 - **Client 刷新**：`UsageSection` 每次挂载都重拉（不只在 `idle` 时），所以离开再进入「用量」页会显示最新数据。
 - **窗口选项**：`[1, 7, 30]` 天；「今天」按小时渲染（只画到当前小时），多日按天渲染；日期选择器可打开任意过去一天并展示完整 24 小时。
@@ -75,21 +77,25 @@ wiring.patch                   应用进 monorepo 的接线改动（26 个文件
 5. `pnpm install` && `pnpm run build`（会生成 `dsh-usage-stats/remote` 的 `typert.remote-client`）。
 6. **重启 `dsh web`** 使其读取新的 `cordis.patch.yml` 组合，然后打开 **⚙ 设置 → 用量**。
 
-`wiring.patch` 覆盖的 26 个文件分四类：
+`wiring.patch` 覆盖的 41 个文件分五类：
 
-- **装配与接线**：`packages/api/remotes/{package.json,src/client/index.ts}`（`usageStatsRemote` 的 import / export type / `$mount`）、`packages/bundle/web-app/{cordis.patch.yml,package.json}`（host `usage-stats` 行、client `ui-usage` 行、`storage-sqlite` 行、把 `storage-domain` 的 `usage_stats` 域路由到 `sqlite`）。
+- **装配与接线**：`packages/api/remotes/{package.json,src/client/index.ts}`（`usageStatsRemote` 的 import / export type / `$mount`）、`packages/bundle/web-app/{cordis.patch.yml,package.json}`（host `usage-stats` 行、client `ui-usage` 行）。存储不动：`usage_stats` 域沿用 base 的 `json` 后端。
 - **编译面**：`tsconfig.base.json`（新增两个 path alias）、`tsconfig.client.json`、`tsconfig.host.json`、`packages/client/tsdown.client.ts`。
 - **生成器与门禁**：`scripts/gen-cordis-catalog.ts`、`scripts/gen-doc-graphs.ts`、`scripts/verify-package-readme-model-experience.ts`、`packages/client/ui-settings-general/tests/shell.client.spec.ts`（settings 导航 section 列表多出 `usage`）。
 - **生成物**（随附以便一次 apply 到位）：`docs/config-catalog.{md,zh.md,i18n.yaml}`、`docs/capability-seams.{md,zh.md,i18n.yaml}`、`docs/module-graph.{md,zh.md,i18n.yaml}`、`docs/subsystems/session.{md,zh.md,i18n.yaml}`、`packages/extensions/tool-cordis/src/api-catalog.ts`、`packages/extensions/cordis-client-runner/src/client/slot-catalog.ts`。
+- **e2e golden**（15 个 `apps/web/tests/expected/**`）：设置弹窗的无障碍树多出「用量」导航项，`DSH_SNAPSHOT=replay pnpm run test:web` 会比对它们；随附以免迁移后要自己重录。
 
 > 生成物若因目标 harness 版本不同而 hunk 冲突，可只跳过这几段，然后重跑生成器补齐：
 > `pnpm run gen-cordis-catalog && pnpm run gen-client-catalog && pnpm run gen-config-catalog && pnpm run gen-doc-graphs && pnpm run gen-module-graph`，
 > 中文侧再用 `pnpm run verify-translation-pairing --write <md>` 重录配对记录。
+> golden 冲突则跳过那一段，用 `DSH_SNAPSHOT=refresh pnpm run test:web` 就地重录。
 
 ## 验证 / 测试
 
 - Host：`pnpm vitest run packages/session/usage-stats`
 - Client：`pnpm vitest run packages/client/ui-usage`
-- 全量 GUI 内环：`pnpm run test:gui`；文档门禁：`pnpm run doc-sync`
+- 全量 GUI 内环：`pnpm run test:gui`（本轮 436 文件 / 6203 通过）；文档门禁：`pnpm run doc-sync`（41/41）；依赖与发布面：`pnpm run hygiene`（16/16）
+- **浏览器回放（必跑）**：`DSH_SNAPSHOT=replay pnpm run test:web` —— 它同时跑 `apps/web/tests/preview-boot.e2e.ts`，那会把 web profile 打包进纯浏览器 Worker 部署并断言控制台干净。**只挂载 Host 端插件、动存储后端的改动必须靠它验证**：Worker 宿主的 `node:sqlite` 是失败桩，任何在 web profile 上急切打开 SQLite 的条目都会让它红。
+- 需要下载浏览器时：`cd apps/web && pnpm exec playwright install chromium chromium-headless-shell`（根目录没有 playwright bin）。
 
 > `lib/`、`node_modules/` 等构建产物不入库（见 `.gitignore`），拷贝后用上面步骤构建。

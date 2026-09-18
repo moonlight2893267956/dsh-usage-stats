@@ -32,6 +32,11 @@ Mount this plugin beside the session persistence it reads; the `usageStats` Remo
 ```yaml
 - id: usage-stats
   name: '@deepseek-ai/dsh-usage-stats'
+```
+
+A deployment that wants the SQLite medium for the checkpoint adds both rows below; without them the `usage_stats` domain stays on the composition's default backend, which is the shared `json` one.
+
+```yaml
 - id: storage-sqlite
   name: '@deepseek-ai/dsh-storage-sqlite'
   config:
@@ -43,7 +48,7 @@ Mount this plugin beside the session persistence it reads; the `usageStats` Remo
       usage_stats: sqlite
 ```
 
-The plugin declares no config. It injects `sessionPersistence` and `storageDomain`: without `sessionPersistence` the fiber stays pending, and without `storageDomain` activation fails loud. The web composition routes the `usage_stats` checkpoint domain to the SQLite backend, whose database opens on activation — which is why that row belongs to the profile mounting this plugin rather than to the shared base.
+The plugin declares no config. It injects `sessionPersistence` and `storageDomain`: without `sessionPersistence` the fiber stays pending, and without `storageDomain` activation fails loud. The shipped Web composition leaves `usage_stats` on the `json` default, because `storage-sqlite` opens its database on activation and that composition also packs the browser-only Worker deployment, whose `node:sqlite` stub refuses the constructor; routing the domain to SQLite is a later patch layer's choice.
 
 ### What the figures mean
 
@@ -104,7 +109,7 @@ None; the plugin never assembles or sends provider requests.
 
 These limits define what the figures cover and what the checkpoint can recover. They are current package constraints.
 
-- **One global checkpoint record** — the checkpoint is a single global value holding accumulated totals and per-session fold progress, so one mutated fold rewrites all of it. A schema change raises the domain `version`, which the SQLite backend rejects as a hard `version-mismatch` at open; the totals are fully re-derivable from the logs, so recovery is clearing the unit rather than migrating it.
+- **One global checkpoint record** — the checkpoint is a single global value holding accumulated totals and per-session fold progress, so one mutated fold rewrites all of it. A schema change raises the domain `version`: the `json` backend backs the stale record up, while a deployment routing the domain to SQLite gets a hard `version-mismatch` at open. The totals are fully re-derivable from the logs, so recovery is clearing the unit rather than migrating it.
 - **Unreadable-log retry across restarts** — only readable sessions enter the checkpoint, so each fresh process re-attempts and re-warns on a corrupt log; within one process it is warned once and skipped.
 - **No per-purpose split** — buckets split by token kind and by model, but not by call purpose (conversation, compaction, session title), because the durable `assistant/message` record does not carry the request's `purpose`; splitting further requires logging that field first.
 

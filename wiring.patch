@@ -1,3 +1,213 @@
+diff --git a/apps/web/tests/expected/agent-preset-authoring/created.expected.md b/apps/web/tests/expected/agent-preset-authoring/created.expected.md
+index e443599032..b7cb298084 100644
+--- a/apps/web/tests/expected/agent-preset-authoring/created.expected.md
++++ b/apps/web/tests/expected/agent-preset-authoring/created.expected.md
+@@ -16,6 +16,9 @@
+     - button "已归档会话":
+       - img
+       - text: 已归档会话
++    - button "用量":
++      - img
++      - text: 用量
+   - button "打开配置文件"
+   - button "关闭":
+     - img
+diff --git a/apps/web/tests/expected/agent-preset-authoring/damaged.expected.md b/apps/web/tests/expected/agent-preset-authoring/damaged.expected.md
+index f06fa3d070..9d83eb7e9f 100644
+--- a/apps/web/tests/expected/agent-preset-authoring/damaged.expected.md
++++ b/apps/web/tests/expected/agent-preset-authoring/damaged.expected.md
+@@ -16,6 +16,9 @@
+     - button "已归档会话":
+       - img
+       - text: 已归档会话
++    - button "用量":
++      - img
++      - text: 用量
+   - button "打开配置文件"
+   - button "关闭":
+     - img
+diff --git a/apps/web/tests/expected/agent-preset-authoring/section.expected.md b/apps/web/tests/expected/agent-preset-authoring/section.expected.md
+index 358f72e593..a61b50077e 100644
+--- a/apps/web/tests/expected/agent-preset-authoring/section.expected.md
++++ b/apps/web/tests/expected/agent-preset-authoring/section.expected.md
+@@ -16,6 +16,9 @@
+     - button "已归档会话":
+       - img
+       - text: 已归档会话
++    - button "用量":
++      - img
++      - text: 用量
+   - button "打开配置文件"
+   - button "关闭":
+     - img
+diff --git a/apps/web/tests/expected/deepseek-messages-settings/cards.expected.md b/apps/web/tests/expected/deepseek-messages-settings/cards.expected.md
+index 15732b9c03..7cbe7d7ae3 100644
+--- a/apps/web/tests/expected/deepseek-messages-settings/cards.expected.md
++++ b/apps/web/tests/expected/deepseek-messages-settings/cards.expected.md
+@@ -16,6 +16,9 @@
+     - button "已归档会话":
+       - img
+       - text: 已归档会话
++    - button "用量":
++      - img
++      - text: 用量
+   - button "打开配置文件"
+   - button "关闭":
+     - img
+diff --git a/apps/web/tests/expected/models-settings-recovery/stored-error.expected.md b/apps/web/tests/expected/models-settings-recovery/stored-error.expected.md
+index 75f37005ed..244b35749c 100644
+--- a/apps/web/tests/expected/models-settings-recovery/stored-error.expected.md
++++ b/apps/web/tests/expected/models-settings-recovery/stored-error.expected.md
+@@ -16,6 +16,9 @@
+     - button "已归档会话":
+       - img
+       - text: 已归档会话
++    - button "用量":
++      - img
++      - text: 用量
+   - button "打开配置文件"
+   - button "关闭":
+     - img
+diff --git a/apps/web/tests/expected/models-settings/catalog-inputs.expected.md b/apps/web/tests/expected/models-settings/catalog-inputs.expected.md
+index db8230f9d7..593ae10318 100644
+--- a/apps/web/tests/expected/models-settings/catalog-inputs.expected.md
++++ b/apps/web/tests/expected/models-settings/catalog-inputs.expected.md
+@@ -16,6 +16,9 @@
+     - button "已归档会话":
+       - img
+       - text: 已归档会话
++    - button "用量":
++      - img
++      - text: 用量
+   - button "打开配置文件"
+   - button "关闭":
+     - img
+diff --git a/apps/web/tests/expected/models-settings/configured.expected.md b/apps/web/tests/expected/models-settings/configured.expected.md
+index 1166b2cd12..cd6535517d 100644
+--- a/apps/web/tests/expected/models-settings/configured.expected.md
++++ b/apps/web/tests/expected/models-settings/configured.expected.md
+@@ -16,6 +16,9 @@
+     - button "已归档会话":
+       - img
+       - text: 已归档会话
++    - button "用量":
++      - img
++      - text: 用量
+   - button "打开配置文件"
+   - button "关闭":
+     - img
+diff --git a/apps/web/tests/expected/models-settings/declared-edit.expected.md b/apps/web/tests/expected/models-settings/declared-edit.expected.md
+index 18a38f9843..704602ab68 100644
+--- a/apps/web/tests/expected/models-settings/declared-edit.expected.md
++++ b/apps/web/tests/expected/models-settings/declared-edit.expected.md
+@@ -16,6 +16,9 @@
+     - button "已归档会话":
+       - img
+       - text: 已归档会话
++    - button "用量":
++      - img
++      - text: 用量
+   - button "打开配置文件"
+   - button "关闭":
+     - img
+diff --git a/apps/web/tests/expected/models-settings/declared.expected.md b/apps/web/tests/expected/models-settings/declared.expected.md
+index 97173d9c20..f870432682 100644
+--- a/apps/web/tests/expected/models-settings/declared.expected.md
++++ b/apps/web/tests/expected/models-settings/declared.expected.md
+@@ -16,6 +16,9 @@
+     - button "已归档会话":
+       - img
+       - text: 已归档会话
++    - button "用量":
++      - img
++      - text: 用量
+   - button "打开配置文件"
+   - button "关闭":
+     - img
+diff --git a/apps/web/tests/expected/models-settings/empty.expected.md b/apps/web/tests/expected/models-settings/empty.expected.md
+index b0e01b614d..e5e5c632f6 100644
+--- a/apps/web/tests/expected/models-settings/empty.expected.md
++++ b/apps/web/tests/expected/models-settings/empty.expected.md
+@@ -16,6 +16,9 @@
+     - button "已归档会话":
+       - img
+       - text: 已归档会话
++    - button "用量":
++      - img
++      - text: 用量
+   - button "打开配置文件"
+   - button "关闭":
+     - img
+diff --git a/apps/web/tests/expected/onboarding-deepseek-config/default-models.expected.md b/apps/web/tests/expected/onboarding-deepseek-config/default-models.expected.md
+index db14de42a9..99d0460dfc 100644
+--- a/apps/web/tests/expected/onboarding-deepseek-config/default-models.expected.md
++++ b/apps/web/tests/expected/onboarding-deepseek-config/default-models.expected.md
+@@ -16,6 +16,9 @@
+     - button "已归档会话":
+       - img
+       - text: 已归档会话
++    - button "用量":
++      - img
++      - text: 用量
+   - button "打开配置文件"
+   - button "关闭":
+     - img
+diff --git a/apps/web/tests/expected/onboarding-deepseek-config/models.expected.md b/apps/web/tests/expected/onboarding-deepseek-config/models.expected.md
+index 6ce0338ab8..6d5222b37a 100644
+--- a/apps/web/tests/expected/onboarding-deepseek-config/models.expected.md
++++ b/apps/web/tests/expected/onboarding-deepseek-config/models.expected.md
+@@ -16,6 +16,9 @@
+     - button "已归档会话":
+       - img
+       - text: 已归档会话
++    - button "用量":
++      - img
++      - text: 用量
+   - button "打开配置文件"
+   - button "关闭":
+     - img
+diff --git a/apps/web/tests/expected/onboarding-usable-provider/dismissed.expected.md b/apps/web/tests/expected/onboarding-usable-provider/dismissed.expected.md
+index aa5bb4ac1f..becb3f6bd3 100644
+--- a/apps/web/tests/expected/onboarding-usable-provider/dismissed.expected.md
++++ b/apps/web/tests/expected/onboarding-usable-provider/dismissed.expected.md
+@@ -16,6 +16,9 @@
+     - button "已归档会话":
+       - img
+       - text: 已归档会话
++    - button "用量":
++      - img
++      - text: 用量
+   - button "打开配置文件"
+   - button "关闭":
+     - img
+diff --git a/apps/web/tests/expected/settings-chrome/dialog-en.expected.md b/apps/web/tests/expected/settings-chrome/dialog-en.expected.md
+index f481cb6ddf..3a54c08fbb 100644
+--- a/apps/web/tests/expected/settings-chrome/dialog-en.expected.md
++++ b/apps/web/tests/expected/settings-chrome/dialog-en.expected.md
+@@ -16,6 +16,9 @@
+     - button "Archived sessions":
+       - img
+       - text: Archived sessions
++    - button "Usage":
++      - img
++      - text: Usage
+   - button "Open configuration file"
+   - button "Close":
+     - img
+diff --git a/apps/web/tests/expected/settings-chrome/dialog.expected.md b/apps/web/tests/expected/settings-chrome/dialog.expected.md
+index 581273fa84..59e5899157 100644
+--- a/apps/web/tests/expected/settings-chrome/dialog.expected.md
++++ b/apps/web/tests/expected/settings-chrome/dialog.expected.md
+@@ -16,6 +16,9 @@
+     - button "已归档会话":
+       - img
+       - text: 已归档会话
++    - button "用量":
++      - img
++      - text: 用量
+   - button "打开配置文件"
+   - button "关闭":
+     - img
 diff --git a/docs/capability-seams.i18n.yaml b/docs/capability-seams.i18n.yaml
 index 8c28ee4357..cf5b9836fd 100644
 --- a/docs/capability-seams.i18n.yaml
@@ -366,54 +576,27 @@ index 26d7999810..90742d89b5 100644
        disposers.push(await ctx.remote.$mount(contribution))
      }
 diff --git a/packages/bundle/web-app/cordis.patch.yml b/packages/bundle/web-app/cordis.patch.yml
-index 9fd0effbc5..56a7d22840 100644
+index 9fd0effbc5..0883d03bb4 100644
 --- a/packages/bundle/web-app/cordis.patch.yml
 +++ b/packages/bundle/web-app/cordis.patch.yml
-@@ -37,6 +37,22 @@
-     # once the web UI owns the choice per session.
-     mode: !!js process.env.DSH_TOOLS_MODE
- 
-+# The usage-stats checkpoint domain is routed to the SQLite storage backend
-+# (the `storage-sqlite` row is inserted near usage-stats below). Base only
-+# mounts the JSON backend, so that row is what makes `usage_stats` a local
-+# SQLite checkpoint: point-sized writes that survive restarts. The backend is
-+# registered here, on the web profile, and not on base, because its constructor
-+# opens the database eagerly on activation — every profile would otherwise open
-+# a SQLite file.
-+# Restates storage-domain's whole config (a patch replaces, never merges): keep
-+# base's JSON default for every domain, but route the `usage_stats` checkpoint
-+# domain to the `sqlite` backend.
-+- id: storage-domain
-+  config:
-+    backend: json
-+    routes:
-+      usage_stats: sqlite
-+
- # ── web-only host rows, the transport layer, and the browser roster ─────────
- 
- # `dsh.client` rows are the browser roster the modules node half scans into
-@@ -88,6 +104,20 @@
+@@ -88,6 +88,16 @@
      - id: session-turn-outline
        name: '@deepseek-ai/dsh-session-turn-outline'
  
-+    # The SQLite storage backend that hosts the usage-stats checkpoint domain
-+    # (routed via storage-domain's `routes` above). Registered on the web
-+    # profile, not base, because its constructor opens the database eagerly on
-+    # activation.
-+    - id: storage-sqlite
-+      name: '@deepseek-ai/dsh-storage-sqlite'
-+      config:
-+        path: !!js dshHomePath('storages/usage-stats.db')
-+
 +    # Cross-session per-day token usage for the Usage settings page (the
-+    # usageStats Remote namespace).
++    # usageStats Remote namespace). Its `usage_stats` checkpoint rides base's
++    # JSON storage backend like every other domain: the SQLite backend opens
++    # its database eagerly on activation, and this profile also composes the
++    # browser-only Worker deployment, whose `node:sqlite` stub refuses the
++    # constructor. A deployment that wants the SQLite medium adds its own
++    # `storage-sqlite` row plus a `storage-domain` `routes` override.
 +    - id: usage-stats
 +      name: '@deepseek-ai/dsh-usage-stats'
 +
      # Resolve bind host, SSH launch, and display once at boot, then mount the
      # matching dual-face directory picker. Mount -native or -browse directly in
      # an overlay to pin the interaction.
-@@ -258,6 +288,10 @@
+@@ -258,6 +268,10 @@
      - id: ui-plugin-manager
        name: '@deepseek-ai/dsh-client-ui-plugin-manager'
  
@@ -425,7 +608,7 @@ index 9fd0effbc5..56a7d22840 100644
      # bundles the sidebar page leaves out are inspected here.
      - id: ui-settings-plugin-inventory
 diff --git a/packages/bundle/web-app/package.json b/packages/bundle/web-app/package.json
-index 6a322911e9..92e25da77e 100644
+index 6a322911e9..4dc08848b8 100644
 --- a/packages/bundle/web-app/package.json
 +++ b/packages/bundle/web-app/package.json
 @@ -94,6 +94,7 @@
@@ -436,11 +619,8 @@ index 6a322911e9..92e25da77e 100644
      "@deepseek-ai/dsh-client-ui-user-questions": "workspace:^",
      "@deepseek-ai/dsh-client-ui-workflow-run": "workspace:^",
      "@deepseek-ai/dsh-client-ui-workspace": "workspace:^",
-@@ -115,8 +116,10 @@
-     "@deepseek-ai/dsh-session-reference": "workspace:^",
-     "@deepseek-ai/dsh-session-stats": "workspace:^",
+@@ -117,6 +118,7 @@
      "@deepseek-ai/dsh-session-turn-outline": "workspace:^",
-+    "@deepseek-ai/dsh-storage-sqlite": "workspace:^",
      "@deepseek-ai/dsh-subprocess": "workspace:^",
      "@deepseek-ai/dsh-tool-subagent": "workspace:^",
 +    "@deepseek-ai/dsh-usage-stats": "workspace:^",
