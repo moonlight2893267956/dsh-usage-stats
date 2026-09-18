@@ -4,12 +4,18 @@
 
 > **仓库定位**：这是该插件的**源码归档（source of record）仓库**。它由 deepseek-harness monorepo 内两个 `@deepseek-ai/*` 工作区包组成，**不在此仓库独立构建/独立发布**。要在实际环境里运行，把它拷进 `deepseek-harness` 仓库并应用 `wiring.patch` 即可（见下）。
 
-> **版本基线**：本仓库对应 **DeepSeek Harness `dsh-0.1.6-alpha.1`**（`upstream/master` @ `0d1f50007f`），两个包的 `version` 与该 harness 的 workspace 版本一致。上游每次发版都会动 client 架构与仓库门禁，迁移到别的版本前请先读「适配历史」一节。
+> **版本基线**：本仓库对应 **DeepSeek Harness `dsh-0.1.6-alpha.2`**（`upstream/master` @ `ddefc45fbc`），两个包的 `version` 与该 harness 的 workspace 版本一致。上游每次发版都会动 client 架构与仓库门禁，迁移到别的版本前请先读「适配历史」一节。
 
 ## 适配历史
 
 每一次上游 alpha 都要求本插件跟着改，逐版记录如下（最新在上）：
 
+- **v0.1.6-alpha.2**
+  - 上游 882 个提交，**插件源码零改动**：alpha.1 那轮门禁适配在 alpha.2 依然全绿（lint 0 error / `doc-sync` 41/41 / `hygiene` 16/16 / `typecheck` / 插件测试 46/46 / `test:gui` 6203 通过）。两个包只把 `version` 提到 `0.1.6-alpha.2`。
+  - 上游新增 `docs/module-graph.{md,zh.md,i18n.yaml}`（模块图门禁），新包必须出现在其中 → `wiring.patch` 从 23 个文件增至 **26 个**。
+  - 接线冲突点：上游在同一批文件里新增了 plugin-manager / office-to-pdf 的接线 —— `packages/api/remotes` 的 `pluginManagerRemote` / `officeToPdfRemote` 导入与 `$mount` 列表、`packages/bundle/web-app/cordis.patch.yml` 的 `ui-plugin-manager` 行。需与本插件接线**两侧都保留**，不是二选一。
+  - `packages/client/tsdown.client.ts`：上游重写为按来源文件名切 chunk（`clientConfig` 多一个 `clientBanner` 参数、入口 banner 改为按 chunk 生成的函数、`chunkFileNames: 'client.[name].js'`）。本插件的 `REPOSITORY_ROOT` 查找补丁重放在新实现之上；插件没有动态 `import()`，因此不产生额外 chunk，`files` 列表无需跟着改。
+  - 上游放松了 Agent Note 规则（`docs/AGENTS.md`）：机械／局部改动（含局部 UI 改动）不再强制要求 note。
 - **v0.1.6-alpha.1**
   - 删除两个包的 `src/invariant.ts`：新门禁拒绝「空 `install` 函数」的伴生入口，改为在各自 README 写明「不发布伴生入口」的理由。
   - 依赖分区按新规则重排：浏览器/类型/客户端装配边（含 `api-remotes` 里生成的 `usage-stats/remote` 值导入）一律进 `devDependencies`；client 包只保留 `@deepseek-ai/cordis` 作为 peer。
@@ -33,13 +39,13 @@
 ## 目录结构
 
 ```
-packages/session/usage-stats/   Host 包：@deepseek-ai/dsh-usage-stats（version 0.1.6-alpha.1）
+packages/session/usage-stats/   Host 包：@deepseek-ai/dsh-usage-stats（version 0.1.6-alpha.2）
   ├─ src/index.ts                UsageStatsService（TypertRemoteService，@Remote('stats')）
   ├─ src/spec.ts                 usage_stats 检查点域（zod + defineDomain）
   ├─ src/types.ts                请求/响应/每日/每小时桶类型
   ├─ tests/                      聚合 / 增量 / 回填 / 窗口钳制 / fork 去重 / Loader 组合
   └─ README.md / README.zh.md
-packages/client/ui-usage/       Client 包：@deepseek-ai/dsh-client-ui-usage（version 0.1.6-alpha.1）
+packages/client/ui-usage/       Client 包：@deepseek-ai/dsh-client-ui-usage（version 0.1.6-alpha.2）
   ├─ src/client/UsageSection.tsx 「设置 → 用量」页（指标卡 + 堆叠柱状图 + 悬浮提示 + 动画）
   ├─ src/client/DatePicker.tsx   下拉日历（单日视图选任意过去一天）
   ├─ src/client/ModelFilter.tsx  模型多选筛选
@@ -48,7 +54,7 @@ packages/client/ui-usage/       Client 包：@deepseek-ai/dsh-client-ui-usage（
   ├─ tests/                      组件 + store + DatePicker 测试
   └─ README.md / README.zh.md
 .agents/notes/                 插件相关的 Agent Note（中英 + i18n 记录）
-wiring.patch                   应用进 monorepo 的接线改动（23 个文件，见下）
+wiring.patch                   应用进 monorepo 的接线改动（26 个文件，见下）
 ```
 
 ## 设计要点
@@ -69,15 +75,15 @@ wiring.patch                   应用进 monorepo 的接线改动（23 个文件
 5. `pnpm install` && `pnpm run build`（会生成 `dsh-usage-stats/remote` 的 `typert.remote-client`）。
 6. **重启 `dsh web`** 使其读取新的 `cordis.patch.yml` 组合，然后打开 **⚙ 设置 → 用量**。
 
-`wiring.patch` 覆盖的 23 个文件分四类：
+`wiring.patch` 覆盖的 26 个文件分四类：
 
 - **装配与接线**：`packages/api/remotes/{package.json,src/client/index.ts}`（`usageStatsRemote` 的 import / export type / `$mount`）、`packages/bundle/web-app/{cordis.patch.yml,package.json}`（host `usage-stats` 行、client `ui-usage` 行、`storage-sqlite` 行、把 `storage-domain` 的 `usage_stats` 域路由到 `sqlite`）。
 - **编译面**：`tsconfig.base.json`（新增两个 path alias）、`tsconfig.client.json`、`tsconfig.host.json`、`packages/client/tsdown.client.ts`。
 - **生成器与门禁**：`scripts/gen-cordis-catalog.ts`、`scripts/gen-doc-graphs.ts`、`scripts/verify-package-readme-model-experience.ts`、`packages/client/ui-settings-general/tests/shell.client.spec.ts`（settings 导航 section 列表多出 `usage`）。
-- **生成物**（随附以便一次 apply 到位）：`docs/config-catalog.{md,zh.md,i18n.yaml}`、`docs/capability-seams.{md,zh.md,i18n.yaml}`、`docs/subsystems/session.{md,zh.md,i18n.yaml}`、`packages/extensions/tool-cordis/src/api-catalog.ts`、`packages/extensions/cordis-client-runner/src/client/slot-catalog.ts`。
+- **生成物**（随附以便一次 apply 到位）：`docs/config-catalog.{md,zh.md,i18n.yaml}`、`docs/capability-seams.{md,zh.md,i18n.yaml}`、`docs/module-graph.{md,zh.md,i18n.yaml}`、`docs/subsystems/session.{md,zh.md,i18n.yaml}`、`packages/extensions/tool-cordis/src/api-catalog.ts`、`packages/extensions/cordis-client-runner/src/client/slot-catalog.ts`。
 
 > 生成物若因目标 harness 版本不同而 hunk 冲突，可只跳过这几段，然后重跑生成器补齐：
-> `pnpm run gen-cordis-catalog && pnpm run gen-client-catalog && pnpm run gen-config-catalog && pnpm run gen-doc-graphs`，
+> `pnpm run gen-cordis-catalog && pnpm run gen-client-catalog && pnpm run gen-config-catalog && pnpm run gen-doc-graphs && pnpm run gen-module-graph`，
 > 中文侧再用 `pnpm run verify-translation-pairing --write <md>` 重录配对记录。
 
 ## 验证 / 测试

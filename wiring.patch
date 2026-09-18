@@ -1,20 +1,20 @@
 diff --git a/docs/capability-seams.i18n.yaml b/docs/capability-seams.i18n.yaml
-index eb4ffabf6a..6b4a9aa48c 100644
+index 8c28ee4357..cf5b9836fd 100644
 --- a/docs/capability-seams.i18n.yaml
 +++ b/docs/capability-seams.i18n.yaml
 @@ -2,5 +2,5 @@
  # side as of the last confirmed-consistent state. Both languages carry equal authority;
  # after editing either side, bring the other along and re-record with:
  #   pnpm run verify-translation-pairing --write docs/capability-seams.md
--capability-seams.md: 839d241869f8f88125cd7db6ad75646f25b4460d
--capability-seams.zh.md: eb6088bf63e51e6a4bb1c41453dd8a2af102b610
-+capability-seams.md: b2905da43c5800c88693359f3f6ce7cfa5275f94
-+capability-seams.zh.md: 4fa44139d0b4590e238b95d46f47cba4bdb919fa
+-capability-seams.md: edb8cd688768ec49ee3699c3775409a66975129d
+-capability-seams.zh.md: b06d9378616669407b79ffa1da205924ff6ad757
++capability-seams.md: 7a31f2446403d7cce5540d2f526b4fcdeaba0a1a
++capability-seams.zh.md: 287c095db5673cf7432974e6fd491c23bf4b6776
 diff --git a/docs/capability-seams.md b/docs/capability-seams.md
-index 839d241869..b2905da43c 100644
+index edb8cd6887..7a31f24464 100644
 --- a/docs/capability-seams.md
 +++ b/docs/capability-seams.md
-@@ -133,6 +133,10 @@ flowchart LR
+@@ -148,6 +148,10 @@ flowchart LR
    pkg_session_projection_cache["session-projection-cache"]
    svc_sessionProjectionCache["ctx.sessionProjectionCache<br/>Persisted projection cache"]
    pkg_subagent["subagent"]
@@ -25,7 +25,7 @@ index 839d241869..b2905da43c 100644
    pkg_skill["skill"]
    svc_skills["ctx.skills<br/>Skill provider registry"]
    pkg_skill_badge["skill-badge"]
-@@ -358,6 +362,7 @@ flowchart LR
+@@ -379,6 +383,7 @@ flowchart LR
    pkg_tool_subagent --> svc_subagentModelSelection
    pkg_tools --> svc_tools
    pkg_typert_registry --> svc_typert
@@ -33,7 +33,7 @@ index 839d241869..b2905da43c 100644
    pkg_user_approval --> svc_approval
    pkg_user_questions --> svc_userQuestions
    pkg_web --> svc_web
-@@ -493,6 +498,8 @@ flowchart LR
+@@ -522,6 +527,8 @@ flowchart LR
    svc_tools --> pkg_tool_web
    svc_typert --> pkg_api_gateway
    svc_typert --> pkg_typert_loader
@@ -42,19 +42,19 @@ index 839d241869..b2905da43c 100644
    svc_userQuestions --> pkg_tool_ask_user
    svc_web --> pkg_tool_web
    svc_webServer --> pkg_client_connection
-@@ -553,6 +560,7 @@ flowchart LR
+@@ -588,6 +595,7 @@ flowchart LR
  | `ctx.commands` | `core` | [`commands`](../packages/interaction/commands) | - | - | - | Plugins register direct human commands without sending invocations to the model. |
  | `ctx.sessionProjections` | `core` | [`session-projection`](../packages/session/session-projection) | - | [`api-session-controller`](../packages/api/session-controller), [`tool-todo`](../packages/todo/tool-todo), [`session-title`](../packages/session/session-title) | - | Domains register state-driven fold units; the eager drive keeps per-session watermark states and the Session controller serves baselines and pushes changed values. |
  | `ctx.sessionProjectionCache` | `core` | [`session-projection-cache`](../packages/session/session-projection-cache) | - | [`api-session-controller`](../packages/api/session-controller), [`session-query`](../packages/session-query/session-query), [`session-reference`](../packages/context/session-reference), [`subagent`](../packages/subagent/subagent) | - | Durably checkpoints projection unit states per session (throttled + turn/end/detach mandatory points) and serves the cold-read ladder: cache row + persistence tail replay, so listings never load full logs. |
 +| `ctx.usageStats` | `core` | [`usage-stats`](../packages/session/usage-stats) | - | [`api-remotes`](../packages/api/remotes), [`client-ui-usage`](../packages/client/ui-usage) | - | Folds every durable Session log into per-day, hourly, and per-model token totals plus checkpointed fold progress, and serves them through the generated Host Remote namespace the Usage settings page reads. |
- | `ctx.skills` | `seam` | [`skill`](../packages/skill/skill) | [`skill-badge`](../packages/skill/skill-badge), [`skill-filesystem`](../packages/skill/skill-filesystem) | [`tool-skill`](../packages/skill/tool-skill) | - | Merges provider skill catalogs; tool-skill renders the session-prefix catalog and loads complete skill bodies. |
+ | `ctx.skills` | `seam` | [`skill`](../packages/skill/skill) | [`skill-badge`](../packages/skill/skill-badge), [`skill-filesystem`](../packages/skill/skill-filesystem), [`skill-office`](../packages/skill/skill-office) | [`tool-skill`](../packages/skill/tool-skill) | - | Merges provider skill catalogs; tool-skill renders the session-prefix catalog and loads complete skill bodies. |
  | `ctx.agents` | `core` | [`agent`](../packages/core/agent) | - | [`agent-loop`](../packages/core/agent-loop), [`acp`](../packages/acp/acp), [`subagent-in-process-driver`](../packages/subagent/subagent-in-process-driver) | - | Owns live Agent handles, the create/resume factory seam, and process-local initiator propagation. |
  | `ctx.agentDefaultModel` | `core` | [`agent-default-model`](../packages/core/agent-default-model) | - | [`api-session-controller`](../packages/api/session-controller), [`headless`](../packages/bundle/headless) | - | Layers the default ModelSelection through settings so direct and Host-backed Agent entry points share one state owner. |
 diff --git a/docs/capability-seams.zh.md b/docs/capability-seams.zh.md
-index eb6088bf63..4fa44139d0 100644
+index b06d937861..287c095db5 100644
 --- a/docs/capability-seams.zh.md
 +++ b/docs/capability-seams.zh.md
-@@ -135,6 +135,10 @@ flowchart LR
+@@ -150,6 +150,10 @@ flowchart LR
    pkg_session_projection_cache["session-projection-cache"]
    svc_sessionProjectionCache["ctx.sessionProjectionCache<br/>Persisted projection cache"]
    pkg_subagent["subagent"]
@@ -65,7 +65,7 @@ index eb6088bf63..4fa44139d0 100644
    pkg_skill["skill"]
    svc_skills["ctx.skills<br/>Skill provider registry"]
    pkg_skill_badge["skill-badge"]
-@@ -360,6 +364,7 @@ flowchart LR
+@@ -381,6 +385,7 @@ flowchart LR
    pkg_tool_subagent --> svc_subagentModelSelection
    pkg_tools --> svc_tools
    pkg_typert_registry --> svc_typert
@@ -73,7 +73,7 @@ index eb6088bf63..4fa44139d0 100644
    pkg_user_approval --> svc_approval
    pkg_user_questions --> svc_userQuestions
    pkg_web --> svc_web
-@@ -495,6 +500,8 @@ flowchart LR
+@@ -524,6 +529,8 @@ flowchart LR
    svc_tools --> pkg_tool_web
    svc_typert --> pkg_api_gateway
    svc_typert --> pkg_typert_loader
@@ -82,31 +82,31 @@ index eb6088bf63..4fa44139d0 100644
    svc_userQuestions --> pkg_tool_ask_user
    svc_web --> pkg_tool_web
    svc_webServer --> pkg_client_connection
-@@ -555,6 +562,7 @@ flowchart LR
+@@ -590,6 +597,7 @@ flowchart LR
  | `ctx.commands` | `core` | [`commands`](../packages/interaction/commands) | - | - | - | 插件注册直接面向人的命令，而不会把调用发送给模型。 |
  | `ctx.sessionProjections` | `core` | [`session-projection`](../packages/session/session-projection) | - | [`api-session-controller`](../packages/api/session-controller), [`tool-todo`](../packages/todo/tool-todo), [`session-title`](../packages/session/session-title) | - | 各领域注册由状态驱动的折叠单元；主动驱动过程维护每个会话的水位状态，Session controller 提供 baseline 并推送发生变化的值。 |
  | `ctx.sessionProjectionCache` | `core` | [`session-projection-cache`](../packages/session/session-projection-cache) | - | [`api-session-controller`](../packages/api/session-controller), [`session-query`](../packages/session-query/session-query), [`session-reference`](../packages/context/session-reference), [`subagent`](../packages/subagent/subagent) | - | 按会话持久保存投影单元状态的检查点（节流检查点，以及轮次／结束／分离时的必选检查点），并提供冷读取阶梯：缓存行加持久化尾部回放，因此列表读取永远不需要加载完整日志。 |
-+| `ctx.usageStats` | `core` | [`usage-stats`](../packages/session/usage-stats) | - | [`api-remotes`](../packages/api/remotes), [`client-ui-usage`](../packages/client/ui-usage) | - | 把每份持久化 Session 日志折叠成按天、按小时、按模型的 token 总量以及检查点化的折叠进度，并通过生成的 Host Remote 命名空间提供，供「用量」设置页读取。 |
- | `ctx.skills` | `seam` | [`skill`](../packages/skill/skill) | [`skill-badge`](../packages/skill/skill-badge), [`skill-filesystem`](../packages/skill/skill-filesystem) | [`tool-skill`](../packages/skill/tool-skill) | - | 合并提供方的 skill（技能）目录；tool-skill 渲染会话前缀目录，并加载完整的 skill 正文。 |
++| `ctx.usageStats` | `core` | [`usage-stats`](../packages/session/usage-stats) | - | [`api-remotes`](../packages/api/remotes), [`client-ui-usage`](../packages/client/ui-usage) | - | 把每个持久化 Session 日志折叠为按天、按小时、按模型的 token 总量以及带检查点的折叠进度，并通过生成的 Host Remote 命名空间提供给 Usage 设置页读取。 |
+ | `ctx.skills` | `seam` | [`skill`](../packages/skill/skill) | [`skill-badge`](../packages/skill/skill-badge), [`skill-filesystem`](../packages/skill/skill-filesystem), [`skill-office`](../packages/skill/skill-office) | [`tool-skill`](../packages/skill/tool-skill) | - | 合并提供方的 skill（技能）目录；tool-skill 渲染会话前缀目录，并加载完整的 skill 正文。 |
  | `ctx.agents` | `core` | [`agent`](../packages/core/agent) | - | [`agent-loop`](../packages/core/agent-loop), [`acp`](../packages/acp/acp), [`subagent-in-process-driver`](../packages/subagent/subagent-in-process-driver) | - | 拥有实时 Agent 句柄、创建／恢复工厂 seam，以及进程本地的发起方传播。 |
  | `ctx.agentDefaultModel` | `core` | [`agent-default-model`](../packages/core/agent-default-model) | - | [`api-session-controller`](../packages/api/session-controller), [`headless`](../packages/bundle/headless) | - | 通过 settings 分层默认 `ModelSelection`，让直接入口与 Host 支撑的 Agent 入口共享同一个状态所有者。 |
 diff --git a/docs/config-catalog.i18n.yaml b/docs/config-catalog.i18n.yaml
-index e07a6a77f1..9249399de2 100644
+index 7da9acd525..7d6423f100 100644
 --- a/docs/config-catalog.i18n.yaml
 +++ b/docs/config-catalog.i18n.yaml
 @@ -2,5 +2,5 @@
  # side as of the last confirmed-consistent state. Both languages carry equal authority;
  # after editing either side, bring the other along and re-record with:
  #   pnpm run verify-translation-pairing --write docs/config-catalog.md
--config-catalog.md: fd28a79ad329d67698da6f92b1a675d67475df7b
--config-catalog.zh.md: eeb90df8eaa52673e5dfb2faf68d9f4b57ba6891
-+config-catalog.md: aa0cd0e80d4db268788cb85e593024dc4764ae78
-+config-catalog.zh.md: c9e87c6b90b68be78166683d1a4e59153e8a5461
+-config-catalog.md: 631ce6a34b120f44534a7935ff976662287fa879
+-config-catalog.zh.md: 8d72786a79ceff85e35aff72fa6622af7373a3b4
++config-catalog.md: 832e81c6aadeec17973da1ecea2e487958bff2bb
++config-catalog.zh.md: 75c50d238e3f70b513430c9e900c5940206b7cfe
 diff --git a/docs/config-catalog.md b/docs/config-catalog.md
-index fd28a79ad3..aa0cd0e80d 100644
+index 631ce6a34b..832e81c6aa 100644
 --- a/docs/config-catalog.md
 +++ b/docs/config-catalog.md
-@@ -3637,6 +3637,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
+@@ -3821,6 +3821,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
  - `@deepseek-ai/dsh-client-ui-theme` ([`packages/client/ui-theme/src/index.ts`](../packages/client/ui-theme/src/index.ts))
  - `@deepseek-ai/dsh-client-ui-tool` ([`packages/client/ui-tool/src/index.ts`](../packages/client/ui-tool/src/index.ts))
  - `@deepseek-ai/dsh-client-ui-trajectory` ([`packages/client/ui-trajectory/src/index.ts`](../packages/client/ui-trajectory/src/index.ts))
@@ -114,19 +114,19 @@ index fd28a79ad3..aa0cd0e80d 100644
  - `@deepseek-ai/dsh-client-ui-user-questions` ([`packages/client/ui-user-questions/src/index.ts`](../packages/client/ui-user-questions/src/index.ts))
  - `@deepseek-ai/dsh-client-ui-workflow-run` ([`packages/client/ui-workflow-run/src/index.ts`](../packages/client/ui-workflow-run/src/index.ts))
  - `@deepseek-ai/dsh-client-ui-workspace` ([`packages/client/ui-workspace/src/index.ts`](../packages/client/ui-workspace/src/index.ts))
-@@ -3677,6 +3678,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
+@@ -3860,6 +3861,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
  - `@deepseek-ai/dsh-tool-call-timeout-policy` — requires `tools` ([`packages/guard/timeout-policy/src/index.ts`](../packages/guard/timeout-policy/src/index.ts))
- - `@deepseek-ai/dsh-tool-cordis` — requires `tools` · `systemPrompt` · `dynamicCordisRunner` · `cordisInspect` ([`packages/extensions/tool-cordis/src/index.ts`](../packages/extensions/tool-cordis/src/index.ts))
+ - `@deepseek-ai/dsh-tool-cordis` — requires `tools` · `systemPrompt` · `cordisInspect` ([`packages/extensions/tool-cordis/src/index.ts`](../packages/extensions/tool-cordis/src/index.ts))
  - `@deepseek-ai/dsh-tool-subagent-control` — requires `tools` · `subagents` ([`packages/subagent/tool-subagent-control/src/index.ts`](../packages/subagent/tool-subagent-control/src/index.ts))
 +- `@deepseek-ai/dsh-usage-stats` — requires `sessionPersistence` · `storageDomain` ([`packages/session/usage-stats/src/index.ts`](../packages/session/usage-stats/src/index.ts))
  - `@deepseek-ai/dsh-user-questions` ([`packages/interaction/user-questions/src/index.ts`](../packages/interaction/user-questions/src/index.ts))
  - `@deepseek-ai/dsh-webhook` — requires `agents` · `agentDefaultModel` · `agentPresets` · `permissionPresets` · `sessionTitle` · `workspaceRegistry` ([`packages/webhook/webhook/src/index.ts`](../packages/webhook/webhook/src/index.ts))
  - `@deepseek-ai/dsh-workspace` — requires `storageDomain` · `sessionPersistence` ([`packages/workspace/workspace/src/index.ts`](../packages/workspace/workspace/src/index.ts))
 diff --git a/docs/config-catalog.zh.md b/docs/config-catalog.zh.md
-index eeb90df8ea..c9e87c6b90 100644
+index 8d72786a79..75c50d238e 100644
 --- a/docs/config-catalog.zh.md
 +++ b/docs/config-catalog.zh.md
-@@ -3639,6 +3639,7 @@ export interface Config {
+@@ -3823,6 +3823,7 @@ export interface Config {
  - `@deepseek-ai/dsh-client-ui-theme`（[`packages/client/ui-theme/src/index.ts`](../packages/client/ui-theme/src/index.ts)）
  - `@deepseek-ai/dsh-client-ui-tool`（[`packages/client/ui-tool/src/index.ts`](../packages/client/ui-tool/src/index.ts)）
  - `@deepseek-ai/dsh-client-ui-trajectory`（[`packages/client/ui-trajectory/src/index.ts`](../packages/client/ui-trajectory/src/index.ts)）
@@ -134,28 +134,136 @@ index eeb90df8ea..c9e87c6b90 100644
  - `@deepseek-ai/dsh-client-ui-user-questions`（[`packages/client/ui-user-questions/src/index.ts`](../packages/client/ui-user-questions/src/index.ts)）
  - `@deepseek-ai/dsh-client-ui-workflow-run`（[`packages/client/ui-workflow-run/src/index.ts`](../packages/client/ui-workflow-run/src/index.ts)）
  - `@deepseek-ai/dsh-client-ui-workspace`（[`packages/client/ui-workspace/src/index.ts`](../packages/client/ui-workspace/src/index.ts)）
-@@ -3679,6 +3680,7 @@ export interface Config {
+@@ -3862,6 +3863,7 @@ export interface Config {
  - `@deepseek-ai/dsh-tool-call-timeout-policy` — 需要 `tools`（[`packages/guard/timeout-policy/src/index.ts`](../packages/guard/timeout-policy/src/index.ts)）
- - `@deepseek-ai/dsh-tool-cordis` — 需要 `tools` · `systemPrompt` · `dynamicCordisRunner` · `cordisInspect`（[`packages/extensions/tool-cordis/src/index.ts`](../packages/extensions/tool-cordis/src/index.ts)）
+ - `@deepseek-ai/dsh-tool-cordis` — 需要 `tools` · `systemPrompt` · `cordisInspect`（[`packages/extensions/tool-cordis/src/index.ts`](../packages/extensions/tool-cordis/src/index.ts)）
  - `@deepseek-ai/dsh-tool-subagent-control` — 需要 `tools` · `subagents`（[`packages/subagent/tool-subagent-control/src/index.ts`](../packages/subagent/tool-subagent-control/src/index.ts)）
 +- `@deepseek-ai/dsh-usage-stats` — 需要 `sessionPersistence` · `storageDomain`（[`packages/session/usage-stats/src/index.ts`](../packages/session/usage-stats/src/index.ts)）
  - `@deepseek-ai/dsh-user-questions`（[`packages/interaction/user-questions/src/index.ts`](../packages/interaction/user-questions/src/index.ts)）
  - `@deepseek-ai/dsh-webhook` — 需要 `agents` · `agentDefaultModel` · `agentPresets` · `permissionPresets` · `sessionTitle` · `workspaceRegistry`（[`packages/webhook/webhook/src/index.ts`](../packages/webhook/webhook/src/index.ts)）
  - `@deepseek-ai/dsh-workspace` — 需要 `storageDomain` · `sessionPersistence`（[`packages/workspace/workspace/src/index.ts`](../packages/workspace/workspace/src/index.ts)）
+diff --git a/docs/module-graph.i18n.yaml b/docs/module-graph.i18n.yaml
+index ff54d13bd5..c6c9e97cb0 100644
+--- a/docs/module-graph.i18n.yaml
++++ b/docs/module-graph.i18n.yaml
+@@ -2,5 +2,5 @@
+ # side as of the last confirmed-consistent state. Both languages carry equal authority;
+ # after editing either side, bring the other along and re-record with:
+ #   pnpm run verify-translation-pairing --write docs/module-graph.md
+-module-graph.md: a886619fa5cba78b2c243c525b8f2a173c1e8038
+-module-graph.zh.md: 9c40a086df916cd638599176a95c649d6a2adc0d
++module-graph.md: 374b1b23146520f09dfb73d9d745eade46e625c6
++module-graph.zh.md: 2f987737b2dc97d7d0a3d42e3e3816a351d2d66a
+diff --git a/docs/module-graph.md b/docs/module-graph.md
+index a886619fa5..374b1b2314 100644
+--- a/docs/module-graph.md
++++ b/docs/module-graph.md
+@@ -193,6 +193,7 @@ flowchart TD
+     pkg_client_ui_theme["client-ui-theme"]
+     pkg_client_ui_tool["client-ui-tool"]
+     pkg_client_ui_trajectory["client-ui-trajectory"]
++    pkg_client_ui_usage["client-ui-usage"]
+     pkg_client_ui_user_questions["client-ui-user-questions"]
+     pkg_client_ui_workflow_run["client-ui-workflow-run"]
+     pkg_client_ui_workspace["client-ui-workspace"]
+@@ -339,6 +340,7 @@ flowchart TD
+     pkg_session_title_first_prompt_llm["session-title-first-prompt-llm"]
+     pkg_session_title_llm["session-title-llm"]
+     pkg_session_turn_outline["session-turn-outline"]
++    pkg_usage_stats["usage-stats"]
+   end
+   subgraph group_settings["packages/settings"]
+     pkg_settings["settings"]
+@@ -519,6 +521,11 @@ flowchart TD
+   pkg_session_turn_outline --> pkg_llm
+   pkg_session_turn_outline --> pkg_session
+   pkg_session_turn_outline --> pkg_session_projection
++  pkg_usage_stats --> pkg_llm
++  pkg_usage_stats --> pkg_session
++  pkg_usage_stats --> pkg_session_persistence
++  pkg_usage_stats --> pkg_storage_domain
++  pkg_usage_stats --> pkg_typert_protocol
+   pkg_settings_file --> pkg_atomic_write
+   pkg_settings_file --> pkg_home_paths
+   pkg_settings_file --> pkg_settings
+@@ -1376,6 +1383,7 @@ flowchart TD
+ | [`client-ui-theme`](../packages/client/ui-theme) | `client` | — |
+ | [`client-ui-tool`](../packages/client/ui-tool) | `client` | — |
+ | [`client-ui-trajectory`](../packages/client/ui-trajectory) | `client` | — |
++| [`client-ui-usage`](../packages/client/ui-usage) | `client` | — |
+ | [`client-ui-user-questions`](../packages/client/ui-user-questions) | `client` | — |
+ | [`client-ui-workflow-run`](../packages/client/ui-workflow-run) | `client` | — |
+ | [`client-ui-workspace`](../packages/client/ui-workspace) | `client` | — |
+@@ -1458,6 +1466,7 @@ flowchart TD
+ | [`session-projection-cache`](../packages/session/session-projection-cache) | `session` | [`session`](../packages/core/session), [`session-projection`](../packages/session/session-projection), [`storage-domain`](../packages/storage/storage-domain) |
+ | [`session-stats`](../packages/session/session-stats) | `session` | [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`session-projection`](../packages/session/session-projection) |
+ | [`session-turn-outline`](../packages/session/session-turn-outline) | `session` | [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`session-projection`](../packages/session/session-projection) |
++| [`usage-stats`](../packages/session/usage-stats) | `session` | [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`storage-domain`](../packages/storage/storage-domain), [`typert-protocol`](../packages/typert/protocol) |
+ | [`settings-file`](../packages/settings/settings-file) | `settings` | [`atomic-write`](../packages/util/atomic-write), [`home-paths`](../packages/util/home-paths), [`settings`](../packages/settings/settings) |
+ | [`shell`](../packages/shell/shell) | `shell` | [`sandbox`](../packages/sandbox/sandbox), [`settings`](../packages/settings/settings), [`subprocess`](../packages/subprocess/subprocess) |
+ | [`workspace`](../packages/workspace/workspace) | `workspace` | [`invariants`](../packages/runtime-diagnostics/invariants), [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`storage`](../packages/storage/storage), [`storage-domain`](../packages/storage/storage-domain), [`typert-protocol`](../packages/typert/protocol) |
+diff --git a/docs/module-graph.zh.md b/docs/module-graph.zh.md
+index 9c40a086df..2f987737b2 100644
+--- a/docs/module-graph.zh.md
++++ b/docs/module-graph.zh.md
+@@ -195,6 +195,7 @@ flowchart TD
+     pkg_client_ui_theme["client-ui-theme"]
+     pkg_client_ui_tool["client-ui-tool"]
+     pkg_client_ui_trajectory["client-ui-trajectory"]
++    pkg_client_ui_usage["client-ui-usage"]
+     pkg_client_ui_user_questions["client-ui-user-questions"]
+     pkg_client_ui_workflow_run["client-ui-workflow-run"]
+     pkg_client_ui_workspace["client-ui-workspace"]
+@@ -341,6 +342,7 @@ flowchart TD
+     pkg_session_title_first_prompt_llm["session-title-first-prompt-llm"]
+     pkg_session_title_llm["session-title-llm"]
+     pkg_session_turn_outline["session-turn-outline"]
++    pkg_usage_stats["usage-stats"]
+   end
+   subgraph group_settings["packages/settings"]
+     pkg_settings["settings"]
+@@ -521,6 +523,11 @@ flowchart TD
+   pkg_session_turn_outline --> pkg_llm
+   pkg_session_turn_outline --> pkg_session
+   pkg_session_turn_outline --> pkg_session_projection
++  pkg_usage_stats --> pkg_llm
++  pkg_usage_stats --> pkg_session
++  pkg_usage_stats --> pkg_session_persistence
++  pkg_usage_stats --> pkg_storage_domain
++  pkg_usage_stats --> pkg_typert_protocol
+   pkg_settings_file --> pkg_atomic_write
+   pkg_settings_file --> pkg_home_paths
+   pkg_settings_file --> pkg_settings
+@@ -1378,6 +1385,7 @@ flowchart TD
+ | [`client-ui-theme`](../packages/client/ui-theme) | `client` | — |
+ | [`client-ui-tool`](../packages/client/ui-tool) | `client` | — |
+ | [`client-ui-trajectory`](../packages/client/ui-trajectory) | `client` | — |
++| [`client-ui-usage`](../packages/client/ui-usage) | `client` | — |
+ | [`client-ui-user-questions`](../packages/client/ui-user-questions) | `client` | — |
+ | [`client-ui-workflow-run`](../packages/client/ui-workflow-run) | `client` | — |
+ | [`client-ui-workspace`](../packages/client/ui-workspace) | `client` | — |
+@@ -1460,6 +1468,7 @@ flowchart TD
+ | [`session-projection-cache`](../packages/session/session-projection-cache) | `session` | [`session`](../packages/core/session), [`session-projection`](../packages/session/session-projection), [`storage-domain`](../packages/storage/storage-domain) |
+ | [`session-stats`](../packages/session/session-stats) | `session` | [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`session-projection`](../packages/session/session-projection) |
+ | [`session-turn-outline`](../packages/session/session-turn-outline) | `session` | [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`session-projection`](../packages/session/session-projection) |
++| [`usage-stats`](../packages/session/usage-stats) | `session` | [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`storage-domain`](../packages/storage/storage-domain), [`typert-protocol`](../packages/typert/protocol) |
+ | [`settings-file`](../packages/settings/settings-file) | `settings` | [`atomic-write`](../packages/util/atomic-write), [`home-paths`](../packages/util/home-paths), [`settings`](../packages/settings/settings) |
+ | [`shell`](../packages/shell/shell) | `shell` | [`sandbox`](../packages/sandbox/sandbox), [`settings`](../packages/settings/settings), [`subprocess`](../packages/subprocess/subprocess) |
+ | [`workspace`](../packages/workspace/workspace) | `workspace` | [`invariants`](../packages/runtime-diagnostics/invariants), [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`storage`](../packages/storage/storage), [`storage-domain`](../packages/storage/storage-domain), [`typert-protocol`](../packages/typert/protocol) |
 diff --git a/docs/subsystems/session.i18n.yaml b/docs/subsystems/session.i18n.yaml
-index 142a9b6d7a..e55bd65444 100644
+index 099313090b..f85b5162df 100644
 --- a/docs/subsystems/session.i18n.yaml
 +++ b/docs/subsystems/session.i18n.yaml
 @@ -2,5 +2,5 @@
  # side as of the last confirmed-consistent state. Both languages carry equal authority;
  # after editing either side, bring the other along and re-record with:
  #   pnpm run verify-translation-pairing --write docs/subsystems/session.md
--session.md: 3e4072cc5c11fabd669d152214ef02fb031ef61c
--session.zh.md: 3d3aee700e100d6356abebdc9e982bb234a51d93
-+session.md: ca116c22e7aeaac2accc8e7cb7225ba5ef5935ca
-+session.zh.md: 8d4dae7dd6a2305871929e9c559b78a08abb5184
+-session.md: 7c7e244bfca17c8e22cabe45fc69126113b685d6
+-session.zh.md: fecae92809bdba93588e163447d372c7a42d0260
++session.md: 56df6caa57de616c01d7c572b9e9ddc078ca5828
++session.zh.md: 93c5e970b9743e701c1fb7bef492ca88800a08b1
 diff --git a/docs/subsystems/session.md b/docs/subsystems/session.md
-index 3e4072cc5c..ca116c22e7 100644
+index 7c7e244bfc..56df6caa57 100644
 --- a/docs/subsystems/session.md
 +++ b/docs/subsystems/session.md
 @@ -1042,6 +1042,26 @@ Types: [CreateSessionOptions](persistence.md) · [PrepareSessionOptions](persist
@@ -186,7 +294,7 @@ index 3e4072cc5c..ca116c22e7 100644
  
  ### `api-session/*` events
 diff --git a/docs/subsystems/session.zh.md b/docs/subsystems/session.zh.md
-index 3d3aee700e..8d4dae7dd6 100644
+index fecae92809..93c5e970b9 100644
 --- a/docs/subsystems/session.zh.md
 +++ b/docs/subsystems/session.zh.md
 @@ -1046,6 +1046,26 @@ Types: [CreateSessionOptions](persistence.zh.md) · [PrepareSessionOptions](pers
@@ -217,23 +325,23 @@ index 3d3aee700e..8d4dae7dd6 100644
  
  ### `api-session/*` events
 diff --git a/packages/api/remotes/package.json b/packages/api/remotes/package.json
-index a81e3cc215..7ba2c18326 100644
+index 8a20b05e13..1b42f9061f 100644
 --- a/packages/api/remotes/package.json
 +++ b/packages/api/remotes/package.json
-@@ -87,6 +87,7 @@
-     "@deepseek-ai/dsh-api-workspace-files": "workspace:^",
-     "zod": "^4.4.3",
+@@ -89,6 +89,7 @@
      "@deepseek-ai/dsh-command-feedback": "workspace:^",
--    "@deepseek-ai/dsh-api-terminal-controller": "workspace:^"
-+    "@deepseek-ai/dsh-api-terminal-controller": "workspace:^",
+     "@deepseek-ai/dsh-api-terminal-controller": "workspace:^",
+     "@deepseek-ai/dsh-plugin-manager": "workspace:^",
+-    "@deepseek-ai/dsh-office-to-pdf": "workspace:^"
++    "@deepseek-ai/dsh-office-to-pdf": "workspace:^",
 +    "@deepseek-ai/dsh-usage-stats": "workspace:^"
    }
  }
 diff --git a/packages/api/remotes/src/client/index.ts b/packages/api/remotes/src/client/index.ts
-index ea622cd552..f8bfd6b30b 100644
+index 26d7999810..90742d89b5 100644
 --- a/packages/api/remotes/src/client/index.ts
 +++ b/packages/api/remotes/src/client/index.ts
-@@ -18,6 +18,7 @@ import sessionRemote from '@deepseek-ai/dsh-api-session-controller/remote'
+@@ -20,6 +20,7 @@ import sessionRemote from '@deepseek-ai/dsh-api-session-controller/remote'
  import workspaceRemote from '@deepseek-ai/dsh-api-workspace-controller/remote'
  import terminalRemote from '@deepseek-ai/dsh-api-terminal-controller/remote'
  import workspaceFilesRemote from '@deepseek-ai/dsh-api-workspace-files/remote'
@@ -241,7 +349,7 @@ index ea622cd552..f8bfd6b30b 100644
  import type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
  
  export type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
-@@ -43,6 +44,7 @@ export type {} from '@deepseek-ai/dsh-api-workspace-files/remote'
+@@ -52,6 +53,7 @@ export type {} from '@deepseek-ai/dsh-api-workspace-files/remote'
  export type * from '@deepseek-ai/dsh-api-workspace-files/types'
  export type {} from '@deepseek-ai/dsh-api-terminal-controller/remote'
  export type * from '@deepseek-ai/dsh-api-terminal-controller/types'
@@ -249,16 +357,16 @@ index ea622cd552..f8bfd6b30b 100644
  export type { SessionJob as JobView } from '@deepseek-ai/dsh-api-session-controller/types'
  // The forwarded-event allowlist's selection seat: without it in the consumer's
  // compilation face `TypertRemoteEvent` is `never` and every `$on` call fails.
-@@ -160,6 +162,7 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
+@@ -169,6 +171,7 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
        agentPresetsRemote, commandsRemote, settingsControllerRemote, goalsRemote, llmRemote, dynamicRemote,
-       pluginInventoryRemote, messageFeedbackRemote, sessionFeedbackRemote, fileUploadsRemote, sessionReferencesRemote,
-       permissionPresetsRemote, subagentsRemote, sessionRemote, workspaceRemote, workspaceFilesRemote, terminalRemote,
+       pluginInventoryRemote, pluginManagerRemote, messageFeedbackRemote, sessionFeedbackRemote, fileUploadsRemote, sessionReferencesRemote,
+       permissionPresetsRemote, subagentsRemote, sessionRemote, workspaceRemote, workspaceFilesRemote, terminalRemote, officeToPdfRemote,
 +      usageStatsRemote,
      ]) {
        disposers.push(await ctx.remote.$mount(contribution))
      }
 diff --git a/packages/bundle/web-app/cordis.patch.yml b/packages/bundle/web-app/cordis.patch.yml
-index b33bb895fa..b7f27eb515 100644
+index 9fd0effbc5..56a7d22840 100644
 --- a/packages/bundle/web-app/cordis.patch.yml
 +++ b/packages/bundle/web-app/cordis.patch.yml
 @@ -37,6 +37,22 @@
@@ -305,22 +413,22 @@ index b33bb895fa..b7f27eb515 100644
      # Resolve bind host, SSH launch, and display once at boot, then mount the
      # matching dual-face directory picker. Mount -native or -browse directly in
      # an overlay to pin the interaction.
-@@ -245,6 +275,10 @@
-     - id: ui-settings-models
-       name: '@deepseek-ai/dsh-client-ui-settings-models'
+@@ -258,6 +288,10 @@
+     - id: ui-plugin-manager
+       name: '@deepseek-ai/dsh-client-ui-plugin-manager'
  
 +    # Usage settings page: per-day token chart over the usageStats Remote.
 +    - id: ui-usage
 +      name: '@deepseek-ai/dsh-client-ui-usage'
 +
+     # Read-only Plugin list tab in the Settings Plugins section; the built-in
+     # bundles the sidebar page leaves out are inspected here.
      - id: ui-settings-plugin-inventory
-       name: '@deepseek-ai/dsh-client-ui-settings-plugin-inventory'
- 
 diff --git a/packages/bundle/web-app/package.json b/packages/bundle/web-app/package.json
-index d1bf1848ad..77db42c313 100644
+index 6a322911e9..92e25da77e 100644
 --- a/packages/bundle/web-app/package.json
 +++ b/packages/bundle/web-app/package.json
-@@ -91,6 +91,7 @@
+@@ -94,6 +94,7 @@
      "@deepseek-ai/dsh-client-ui-theme": "workspace:^",
      "@deepseek-ai/dsh-client-ui-tool": "workspace:^",
      "@deepseek-ai/dsh-client-ui-trajectory": "workspace:^",
@@ -328,7 +436,7 @@ index d1bf1848ad..77db42c313 100644
      "@deepseek-ai/dsh-client-ui-user-questions": "workspace:^",
      "@deepseek-ai/dsh-client-ui-workflow-run": "workspace:^",
      "@deepseek-ai/dsh-client-ui-workspace": "workspace:^",
-@@ -112,8 +113,10 @@
+@@ -115,8 +116,10 @@
      "@deepseek-ai/dsh-session-reference": "workspace:^",
      "@deepseek-ai/dsh-session-stats": "workspace:^",
      "@deepseek-ai/dsh-session-turn-outline": "workspace:^",
@@ -340,7 +448,7 @@ index d1bf1848ad..77db42c313 100644
      "@deepseek-ai/dsh-workspace": "workspace:^",
      "@deepseek-ai/schemastery": "workspace:^",
 diff --git a/packages/client/tsdown.client.ts b/packages/client/tsdown.client.ts
-index 4ca225d5ac..4029f8e866 100644
+index 3820fba8b0..00286bc95c 100644
 --- a/packages/client/tsdown.client.ts
 +++ b/packages/client/tsdown.client.ts
 @@ -80,7 +80,21 @@ const GENERATED_REMOTE = /^@deepseek-ai\/dsh-[a-z0-9]+(?:-[a-z0-9]+)*\/remote$/
@@ -367,10 +475,10 @@ index 4ca225d5ac..4029f8e866 100644
  /** Rebase a physical lib-relative source onto a browser URL that mirrors the repository directories. */
  function browserSourcePath(source: string, sourcemapPath: string): string {
 diff --git a/packages/client/ui-settings-general/tests/shell.client.spec.ts b/packages/client/ui-settings-general/tests/shell.client.spec.ts
-index 9a36566fbe..19aa68cc6d 100644
+index bd24d3cd15..c35f2e12fc 100644
 --- a/packages/client/ui-settings-general/tests/shell.client.spec.ts
 +++ b/packages/client/ui-settings-general/tests/shell.client.spec.ts
-@@ -36,10 +36,11 @@ const CHILD_NAMES = Object.keys(CHILD_SPECS) as Array<keyof typeof CHILD_SPECS>
+@@ -37,10 +37,11 @@ const CHILD_NAMES = Object.keys(CHILD_SPECS) as Array<keyof typeof CHILD_SPECS>
  
  /**
   * Section ids the web-app roster registers, in nav order: this package, then
@@ -386,10 +494,10 @@ index 9a36566fbe..19aa68cc6d 100644
  const PRODUCT_ONBOARDING: readonly { id: string; order: number }[] = [
    { id: 'welcome-notice', order: -100 },
 diff --git a/packages/extensions/cordis-client-runner/src/client/slot-catalog.ts b/packages/extensions/cordis-client-runner/src/client/slot-catalog.ts
-index 66c1f295eb..3c95ca6849 100644
+index 0caa5b38bf..e97c0b05f0 100644
 --- a/packages/extensions/cordis-client-runner/src/client/slot-catalog.ts
 +++ b/packages/extensions/cordis-client-runner/src/client/slot-catalog.ts
-@@ -1997,6 +1997,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
+@@ -2241,6 +2241,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
        'client-ui-settings-models ModelsSection id \'models\'',
        'client-ui-settings-plugins PluginsSettingsSection id \'plugins\'',
        'client-ui-settings-unarchive-sessions ArchivedSessionsSection id \'archived-sessions\'',
@@ -398,10 +506,10 @@ index 66c1f295eb..3c95ca6849 100644
      replaceRisk: 'none',
      example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'settings.section\', () => ctx.slots.register(\n      { name: \'settings.section\', id: \'my-entry\', order: 100, label: \'My entry\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
 diff --git a/packages/extensions/tool-cordis/src/api-catalog.ts b/packages/extensions/tool-cordis/src/api-catalog.ts
-index 3ee6723232..071d7b1bcb 100644
+index 5e6d2a4bcf..8af83e1f02 100644
 --- a/packages/extensions/tool-cordis/src/api-catalog.ts
 +++ b/packages/extensions/tool-cordis/src/api-catalog.ts
-@@ -2873,6 +2873,19 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
+@@ -3075,6 +3075,19 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
        },
      ],
    },
@@ -421,7 +529,7 @@ index 3ee6723232..071d7b1bcb 100644
    {
      key: 'userQuestions',
      summary: '`ctx.userQuestions`: validation plus the scoped answerer waterfall.',
-@@ -6462,6 +6475,26 @@ export const TYPE_API: readonly TypeApiEntry[] = [
+@@ -6924,6 +6937,26 @@ export const TYPE_API: readonly TypeApiEntry[] = [
      name: 'UpdateTeamTaskRequest',
      declaration: 'export interface UpdateTeamTaskRequest {\n    readonly taskId: TeamTaskId;\n    readonly expectedRevision: number;\n    readonly action: TeamTaskAction;\n    readonly subject?: string;\n    readonly description?: string;\n    readonly blockedBy?: readonly TeamTaskId[];\n    readonly writeScopes?: readonly string[];\n    readonly owner?: string;\n}',
    },
@@ -449,10 +557,10 @@ index 3ee6723232..071d7b1bcb 100644
      name: 'UserMessage',
      declaration: 'export interface UserMessage extends Message {\n    readonly role: \'user\';\n}',
 diff --git a/scripts/gen-cordis-catalog.ts b/scripts/gen-cordis-catalog.ts
-index 0adbfa8145..011c5729af 100644
+index 2c7f7968cb..9073a28e56 100644
 --- a/scripts/gen-cordis-catalog.ts
 +++ b/scripts/gen-cordis-catalog.ts
-@@ -103,6 +103,7 @@ export const SERVICE_PAGE: Record<string, string> = {
+@@ -108,6 +108,7 @@ export const SERVICE_PAGE: Record<string, string> = {
    sessionController: 'session.md',
    sessionSkillCatalog: 'skills.md',
    sessions: 'session.md',
@@ -460,7 +568,7 @@ index 0adbfa8145..011c5729af 100644
    settings: 'settings.md',
    sessionTitle: 'session-title.md',
    skills: 'skills.md',
-@@ -775,6 +776,9 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
+@@ -814,6 +815,9 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
    InvariantRegistration: 'service-local lifecycle handle is owned by packages/runtime-diagnostics/invariants/README.md',
    JsonValue: 'JSON value union is owned by packages/core/session/src/json.ts',
    KnobState: 'projection unit state fields are owned by packages/interaction/permission-presets/README.md',
@@ -471,10 +579,10 @@ index 0adbfa8145..011c5729af 100644
    RequestRunId: 'dynamic-package payload contract is owned by packages/extensions/cordis-host-runner/src/types.ts',
    RpcReceipt: 'carrier-layer receipt is owned by packages/client/connection/src/rpc.ts',
 diff --git a/scripts/gen-doc-graphs.ts b/scripts/gen-doc-graphs.ts
-index 5860dd8d55..b6cfe6dc98 100644
+index 5b32da720a..ad4ef7fc55 100644
 --- a/scripts/gen-doc-graphs.ts
 +++ b/scripts/gen-doc-graphs.ts
-@@ -456,6 +456,14 @@ const SERVICE_ROLES: ServiceRole[] = [
+@@ -501,6 +501,14 @@ const SERVICE_ROLES: ServiceRole[] = [
      consumers: ['api-session-controller', 'session-query', 'session-reference', 'subagent'],
      note: 'Durably checkpoints projection unit states per session (throttled + turn/end/detach mandatory points) and serves the cold-read ladder: cache row + persistence tail replay, so listings never load full logs.',
    },
@@ -490,18 +598,18 @@ index 5860dd8d55..b6cfe6dc98 100644
      key: 'skills',
      pkg: 'skill',
 diff --git a/scripts/verify-package-readme-model-experience.ts b/scripts/verify-package-readme-model-experience.ts
-index 9724817a41..a0ab4a81ca 100644
+index a3c030bc0b..d17e35cd3a 100644
 --- a/scripts/verify-package-readme-model-experience.ts
 +++ b/scripts/verify-package-readme-model-experience.ts
-@@ -64,6 +64,7 @@ const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
+@@ -65,6 +65,7 @@ const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
    'packages/ptc-runtime/ptc-runtime-node': { kind: 'indirect', reason: 'The Node process backend delegates model rendering to PTC mode in dsh-tools.' },
    'packages/experimental/ptc-runtime-python': { kind: 'indirect', reason: 'Explicit source-checkout compositions delegate model rendering to PTC mode in dsh-tools.' },
    'packages/client/ui-agent-preset': { kind: 'indirect', reason: 'Browser-side settings row; the preset it selects owns every model-facing effect.' },
 +  'packages/client/ui-usage': { kind: 'none', reason: 'Browser-side usage projection; registers no model-facing behavior.' },
    'packages/util/crypto': { kind: 'indirect', reason: 'Pure identifier minting; the ids consumers mint with it never enter prompts as semantic content.' },
    'packages/util/deque': { kind: 'none', reason: 'In-process collection primitive; registers nothing model-facing.' },
-   'packages/util/chunked-list': { kind: 'none', reason: 'Immutable collection primitive; registers nothing model-facing.' },
-@@ -160,6 +161,7 @@ const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
+   'packages/deliverables/workspace-changes': { kind: 'none', reason: 'The recorder appends a log-only Session event that only clients read; it registers nothing model-facing.' },
+@@ -164,6 +165,7 @@ const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
    'packages/session/session-projection': { kind: 'none', reason: 'The projection registry serves client-facing read models of already-logged session state and registers nothing model-facing.' },
    'packages/session/session-projection-cache': { kind: 'none', reason: 'The persisted cache accelerates host-side cold reads of projection state and registers nothing model-facing.' },
    'packages/session/session-stats': { kind: 'none', reason: 'The sessionStats unit folds already-logged step boundaries into a client-facing read model and registers nothing model-facing.' },
@@ -510,10 +618,10 @@ index 9724817a41..a0ab4a81ca 100644
    'packages/session-query/session-query': { kind: 'none', reason: 'The trusted query service exposes cloned records only to callers and registers nothing model-facing.' },
    'packages/session-query/session-query-sqlite': { kind: 'none', reason: 'The search backend returns hits only to callers and registers nothing model-facing.' },
 diff --git a/tsconfig.base.json b/tsconfig.base.json
-index 09d902cccd..006316e62e 100644
+index 6ec529b39d..ce93f1389a 100644
 --- a/tsconfig.base.json
 +++ b/tsconfig.base.json
-@@ -239,6 +239,7 @@
+@@ -249,6 +249,7 @@
        "@deepseek-ai/dsh-client-ui-user-questions": ["./packages/client/ui-user-questions/src"],
        "@deepseek-ai/dsh-client-ui-trajectory": ["./packages/client/ui-trajectory/src"],
        "@deepseek-ai/dsh-client-ui-workspace": ["./packages/client/ui-workspace/src"],
@@ -521,7 +629,7 @@ index 09d902cccd..006316e62e 100644
        "@deepseek-ai/dsh-client-ui-theme": ["./packages/client/ui-theme/src"],
        "@deepseek-ai/dsh-client-ui-settings": ["./packages/client/ui-settings/src"],
        "@deepseek-ai/dsh-client-ui-settings-general": ["./packages/client/ui-settings-general/src"],
-@@ -469,6 +470,7 @@
+@@ -483,6 +484,7 @@
        "@deepseek-ai/dsh-tool-workflow/invariant": ["./packages/workflow/tool-workflow/src/invariant.ts"],
        "@deepseek-ai/dsh-tools": ["./packages/core/tools/src"],
        "@deepseek-ai/dsh-tools/invariant": ["./packages/core/tools/src/invariant.ts"],
@@ -530,10 +638,10 @@ index 09d902cccd..006316e62e 100644
        "@deepseek-ai/dsh-user-approval/invariant": ["./packages/interaction/user-approval/src/invariant.ts"],
        "@deepseek-ai/dsh-user-questions": ["./packages/interaction/user-questions/src"],
 diff --git a/tsconfig.client.json b/tsconfig.client.json
-index 0ab7e0edcb..a898cdf650 100644
+index b830d85b2f..5ded3b5ab7 100644
 --- a/tsconfig.client.json
 +++ b/tsconfig.client.json
-@@ -103,6 +103,7 @@
+@@ -104,6 +104,7 @@
      { "path": "./packages/client/ui-permission-presets" },
      { "path": "./packages/client/ui-plan" },
      { "path": "./packages/client/ui-settings-plugins" },
@@ -542,10 +650,10 @@ index 0ab7e0edcb..a898cdf650 100644
      { "path": "./packages/client/ui-trajectory" },
      { "path": "./packages/session-query/session-log-export/tsconfig.client.json" },
 diff --git a/tsconfig.host.json b/tsconfig.host.json
-index e5841338d1..f4030bacab 100644
+index 2b98af6f58..1994ba488f 100644
 --- a/tsconfig.host.json
 +++ b/tsconfig.host.json
-@@ -208,6 +208,7 @@
+@@ -228,6 +228,7 @@
      { "path": "./packages/session/session-projection" },
      { "path": "./packages/session/session-projection-cache" },
      { "path": "./packages/session/session-stats" },
