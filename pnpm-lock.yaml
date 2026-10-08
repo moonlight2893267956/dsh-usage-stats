@@ -10,9 +10,6 @@ importers:
 
   packages/usage-stats:
     dependencies:
-      '@deepseek-ai/dsh-typert-protocol':
-        specifier: ~0.2.1-alpha.1
-        version: 0.2.1-alpha.1(@deepseek-ai/cordis@4.0.5-alpha.1)
       zod:
         specifier: ^4.4.3
         version: 4.6.5
