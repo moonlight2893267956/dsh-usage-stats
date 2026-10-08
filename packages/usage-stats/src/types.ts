@@ -2,7 +2,7 @@
  * Public request and value vocabulary for cross-session token-usage
  * statistics. Types only, so the generated Remote client consumes them without
  * importing Host runtime code.
- * @module @deepseek-ai/dsh-usage-stats/types
+ * @module @moonlight2893267956/dsh-usage-stats/types
  */
 
 /** One model's token totals within a single day. */

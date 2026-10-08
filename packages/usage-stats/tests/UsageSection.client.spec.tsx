@@ -15,7 +15,7 @@ afterEach(() => {
 })
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
-import type { UsageStatsDay, UsageStatsHour, UsageStatsRequest, UsageStatsValue } from '@deepseek-ai/dsh-usage-stats/types'
+import type { UsageStatsDay, UsageStatsHour, UsageStatsRequest, UsageStatsValue } from '../src/types.ts'
 import { UsageSection } from '../src/client/UsageSection.tsx'
 import { UsageStatsStore, type UsageStatsRemote } from '../src/client/store.ts'
 import { zh } from '../src/client/locales.ts'

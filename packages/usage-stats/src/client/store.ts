@@ -3,13 +3,13 @@
  * token-usage window, loaded from the usageStats Remote. The Host stays the
  * single fact source — every load writes the window through the wire and the
  * page re-renders from the next snapshot.
- * @module @deepseek-ai/dsh-client-ui-usage/client/store
+ * @module @moonlight2893267956/dsh-usage-stats/client/store
  */
 
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
-import type { UsageStatsDay, UsageStatsRequest, UsageStatsValue } from '@deepseek-ai/dsh-usage-stats/types'
+import type { UsageStatsDay, UsageStatsRequest, UsageStatsValue } from '@moonlight2893267956/dsh-usage-stats/types'
 
 /**
  * The one Remote call this store needs. The generated face wraps the value in

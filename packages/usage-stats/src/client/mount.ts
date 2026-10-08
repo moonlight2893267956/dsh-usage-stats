@@ -2,15 +2,15 @@
  * Source-safe lifecycle for the usageStats Remote and the Usage settings page.
  *
  * The plugin mounts its own Remote namespace instead of joining a central
- * assembly: `@deepseek-ai/dsh-usage-stats/remote` carries both the contribution
+ * assembly: `@moonlight2893267956/dsh-usage-stats/remote` carries both the contribution
  * and the `TypertRemoteMap` merge, so importing it is enough to type and mount
  * `remote.usageStats` without a consumer-side registration seat.
- * @module @deepseek-ai/dsh-client-ui-usage/client/mount
+ * @module @moonlight2893267956/dsh-usage-stats/client/mount
  */
 
 import type { Context } from '@deepseek-ai/cordis'
 // Type-only: pulls the generated namespace merge and its declaration merging.
-import type {} from '@deepseek-ai/dsh-usage-stats/remote'
+import type {} from '@moonlight2893267956/dsh-usage-stats/remote'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: pulls the UI renderer's slots service merge (ctx.slots).

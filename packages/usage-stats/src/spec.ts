@@ -6,7 +6,7 @@
  * in-memory accumulator — the log stays the source of truth and the checkpoint
  * is disposable derived data, so a lost or stale record costs a longer tail
  * replay on the next cold read, never a wrong value.
- * @module @deepseek-ai/dsh-usage-stats/src/spec
+ * @module @moonlight2893267956/dsh-usage-stats/src/spec
  */
 
 import { z } from 'zod'

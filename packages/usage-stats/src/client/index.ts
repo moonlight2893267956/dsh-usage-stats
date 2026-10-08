@@ -3,11 +3,11 @@
  * registers the Usage page — a per-day token-usage chart. The page store loads
  * the trailing window on mount and on every range change; the Host owns the
  * aggregate.
- * @module @deepseek-ai/dsh-client-ui-usage/client
+ * @module @moonlight2893267956/dsh-usage-stats/client
  */
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
-import usageStatsRemote from '@deepseek-ai/dsh-usage-stats/remote'
+import usageStatsRemote from '@moonlight2893267956/dsh-usage-stats/remote'
 import { mountUsageStats } from './mount.ts'
 
 export { inject } from './mount.ts'

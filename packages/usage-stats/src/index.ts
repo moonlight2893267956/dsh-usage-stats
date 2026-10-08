@@ -6,7 +6,7 @@
  * after a restart (backfilling history) instead of depending on process-local
  * state. The fold is log-scoped, not surface-scoped — tokens a later
  * compaction hid from the model still count, because they were consumed.
- * @module @deepseek-ai/dsh-usage-stats
+ * @module @moonlight2893267956/dsh-usage-stats
  */
 
 import { Service, type Context } from '@deepseek-ai/cordis'

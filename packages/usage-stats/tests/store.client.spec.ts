@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest'
 import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
-import type { UsageStatsDay, UsageStatsRequest, UsageStatsValue } from '@deepseek-ai/dsh-usage-stats/types'
+import type { UsageStatsDay, UsageStatsRequest, UsageStatsValue } from '../src/types.ts'
 import { UsageStatsStore, type UsageStatsRemote } from '../src/client/store.ts'
 
 function ok(value: UsageStatsValue): RemoteResult<UsageStatsValue> {

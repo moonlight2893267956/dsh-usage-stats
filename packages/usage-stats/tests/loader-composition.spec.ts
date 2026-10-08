@@ -36,7 +36,7 @@ async function loadComposition(configPath: string): Promise<Context> {
     ['@deepseek-ai/dsh-storage', Storage],
     ['@deepseek-ai/dsh-storage-sqlite', StorageSqlite],
     ['@deepseek-ai/dsh-storage-domain', StorageDomain],
-    ['@deepseek-ai/dsh-usage-stats', UsageStatsService],
+    ['@moonlight2893267956/dsh-usage-stats', UsageStatsService],
   ])
   ctx.loader.internal = {
     version: 'v2',
@@ -96,7 +96,7 @@ describe('usage-stats through a real Loader composition', () => {
       "- name: '@deepseek-ai/dsh-storage-domain'",
       '  config:',
       '    backend: sqlite',
-      "- name: '@deepseek-ai/dsh-usage-stats'",
+      "- name: '@moonlight2893267956/dsh-usage-stats'",
       '',
     ].join('\n'))
 

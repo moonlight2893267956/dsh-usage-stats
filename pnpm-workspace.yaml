@@ -1,0 +1,8 @@
+packages:
+  - 'packages/*'
+
+# koffi is a native FFI build pulled in by the JSONL session-persistence dev
+# dependency. Nothing in this plugin's build or tests crosses that FFI boundary,
+# so its install script stays unapproved instead of compiling a binary.
+allowBuilds:
+  koffi: false

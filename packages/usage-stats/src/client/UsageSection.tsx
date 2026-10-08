@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
-import type { UsageStatsDay } from '@deepseek-ai/dsh-usage-stats/types'
+import type { UsageStatsDay } from '@moonlight2893267956/dsh-usage-stats/types'
 import type { UsageStatsStore } from './store.ts'
 import type { en } from './locales.ts'
 import styles from './UsageSection.module.css'

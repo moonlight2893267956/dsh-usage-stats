@@ -1,0 +1,10 @@
+{
+  // Host aggregate discovered by the typert generator: it points at the Host
+  // leaf, whose `include` is the source program the generator analyzes.
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/usage-stats/tsconfig.node.json"
+    }
+  ]
+}
