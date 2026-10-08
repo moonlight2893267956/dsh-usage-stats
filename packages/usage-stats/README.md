@@ -1,5 +1,5 @@
 ---
-description: "Per-day token-usage totals across every session on this device, folded from the durable session logs and served to clients over the usageStats Remote."
+description: "Per-day token-usage totals across every session on this device, folded from the durable session logs and served to clients over one read-only HTTP route."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use this package to report how many tokens this device has spent, aggregated by day across every session rather than only the one on screen. It folds the durable session logs into per-day totals of input, cache-read, and output tokens plus web-search counts, and serves them to clients through the `usageStats` Remote. Because the log is the source of truth, totals survive restarts and backfill history; a storage checkpoint makes a warm start fold only new events. Deleted sessions keep their contribution, and unreadable logs are skipped rather than failing the query.
+Use this package to report how many tokens this device has spent, aggregated by day across every session rather than only the one on screen. It folds the durable session logs into per-day totals of input, cache-read, and output tokens plus web-search counts, and serves them to clients through one read-only HTTP route. Because the log is the source of truth, totals survive restarts and backfill history; a storage checkpoint makes a warm start fold only new events. Deleted sessions keep their contribution, and unreadable logs are skipped rather than failing the query.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ Use this package to report how many tokens this device has spent, aggregated by 
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this plugin beside the session persistence it reads; the `usageStats` Remote namespace then serves the Web GUI's Usage page.
+Mount this plugin beside the session persistence it reads; the read route it registers then serves the Web GUI's Usage page.
 
 ### Minimal configuration
 
