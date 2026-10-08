@@ -30,13 +30,9 @@
       "types": "./lib/types/types.d.ts",
       "default": "./lib/types/types.js"
     },
-    "./typert": {
-      "types": "./lib/typert.host.d.ts",
-      "default": "./lib/typert.host.js"
-    },
-    "./remote": {
-      "types": "./lib/typert.remote-client.d.ts",
-      "default": "./lib/typert.remote-client.js"
+    "./route": {
+      "types": "./lib/types/route.d.ts",
+      "default": "./lib/types/route.js"
     },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./locale/*.json": "./locale/*.json",
@@ -49,10 +45,6 @@
     "lib/client.js",
     "lib/types/**/*.js",
     "lib/types/**/*.d.ts",
-    "lib/typert.host.js",
-    "lib/typert.host.d.ts",
-    "lib/typert.remote-client.js",
-    "lib/typert.remote-client.d.ts",
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg"
@@ -72,6 +64,7 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.5-alpha.1",
+    "@deepseek-ai/dsh-host-webserver": "~0.2.1-alpha.1",
     "@deepseek-ai/dsh-llm": "~0.2.1-alpha.1",
     "@deepseek-ai/dsh-session": "~0.2.1-alpha.1",
     "@deepseek-ai/dsh-session-persistence": "~0.2.1-alpha.1",
@@ -89,6 +82,7 @@
     "@deepseek-ai/dsh-client-ui-renderer": "~0.2.1-alpha.1",
     "@deepseek-ai/dsh-client-ui-settings": "~0.2.1-alpha.1",
     "@deepseek-ai/dsh-client-ui-slots": "~0.2.1-alpha.1",
+    "@deepseek-ai/dsh-host-webserver": "~0.2.1-alpha.1",
     "@deepseek-ai/dsh-llm": "~0.2.1-alpha.1",
     "@deepseek-ai/dsh-package-manifest": "~0.2.1-alpha.1",
     "@deepseek-ai/dsh-session": "~0.2.1-alpha.1",
@@ -97,17 +91,19 @@
     "@deepseek-ai/dsh-storage": "~0.2.1-alpha.1",
     "@deepseek-ai/dsh-storage-domain": "~0.2.1-alpha.1",
     "@deepseek-ai/dsh-storage-json": "~0.2.1-alpha.1",
-    "@deepseek-ai/dsh-typert-generator": "~0.2.1-alpha.1",
-    "@deepseek-ai/dsh-typert-protocol": "~0.2.1-alpha.1",
+    "@deepseek-ai/dsh-storage-sqlite": "~0.2.1-alpha.1",
     "@testing-library/react": "^16.1.0",
     "@types/node": "^24.0.0",
     "@types/react": "~18.3.1",
+    "immer": "^10.1.1",
+    "jsdom": "^27.0.0",
     "lightningcss": "^1.30.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tsdown": "^0.22.2",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "zustand": "~4.4.7"
   },
   "pnpm": {
     "ignoredBuiltDependencies": [

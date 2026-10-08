@@ -101,7 +101,10 @@ describe('usage-stats through a real Loader composition', () => {
     ].join('\n'))
 
     const first = await loadComposition(configPath)
-    expect(first.usageStats.typertRemote.namespace).toBe('usageStats')
+    // The Loader composed the plugin and activated its service. This profile
+    // composes no web server, so the read route is not registered here — the
+    // service still folds and answers.
+    expect(first.usageStats).toBeInstanceOf(UsageStatsService)
 
     const session = first.sessions.create(SessionId('loader-usage'), { meta: { cwd: root } })
     const writer = await first.sessionPersistence.create(session.header)

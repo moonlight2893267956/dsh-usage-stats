@@ -1,29 +1,46 @@
 /**
  * Cross-session per-day token-usage statistics, folded from the durable
- * session logs and served to clients over a Typert Remote. The log is the
- * source of truth: every `assistant/message` carries its step's token
- * accounting and every `tool/call` names its tool, so the aggregate re-derives
- * after a restart (backfilling history) instead of depending on process-local
- * state. The fold is log-scoped, not surface-scoped — tokens a later
- * compaction hid from the model still count, because they were consumed.
+ * session logs and served to browser clients over one read-only HTTP route.
+ * The log is the source of truth: every `assistant/message` carries its step's
+ * token accounting and every `tool/call` names its tool, so the aggregate
+ * re-derives after a restart (backfilling history) instead of depending on
+ * process-local state. The fold is log-scoped, not surface-scoped — tokens a
+ * later compaction hid from the model still count, because they were consumed.
  * @module @moonlight2893267956/dsh-usage-stats
  */
 
 import { Service, type Context } from '@deepseek-ai/cordis'
-import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Session } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session/types'
 import { SessionPersistenceRevision } from '@deepseek-ai/dsh-session-persistence'
 import type { DomainGlobal } from '@deepseek-ai/dsh-storage-domain'
 // Type-only: pulls the `sessionPersistence` Context merge into this program.
 import type {} from '@deepseek-ai/dsh-session-persistence'
+// Type-only: pulls the `webServer` Context merge into this program.
+import type {} from '@deepseek-ai/dsh-host-webserver'
 import { usageStatsDomainSpec } from './spec.ts'
 import type { UsageStatsCheckpoint, UsageStatsSession } from './spec.ts'
+import { USAGE_STATS_PATH, parseUsageStatsQuery } from './route.ts'
 import type { UsageStatsDay, UsageStatsHour, UsageStatsModelTotals, UsageStatsRequest, UsageStatsValue } from './types.ts'
 
 export type * from './types.ts'
 export { usageStatsDomainSpec } from './spec.ts'
 export type { UsageStatsCheckpoint, UsageStatsSession } from './spec.ts'
+
+/**
+ * Complete one JSON response. The read is a fresh aggregate every time, so it
+ * is never cacheable.
+ * @param res - the response to complete.
+ * @param status - HTTP status code.
+ * @param payload - value serialized as the JSON body.
+ */
+function sendJson(res: ServerResponse, status: number, payload: unknown): void {
+  res.statusCode = status
+  res.setHeader('content-type', 'application/json; charset=utf-8')
+  res.setHeader('cache-control', 'no-store')
+  res.end(JSON.stringify(payload))
+}
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -154,7 +171,7 @@ function restoreDay(persisted: UsageStatsCheckpoint['days'][string]): DayTotals 
  * restarts and repeated visits. The checkpoint is derived, never an authority:
  * a lost or stale record only costs a longer tail replay on the next cold read.
  */
-export class UsageStatsService extends TypertRemoteService {
+export class UsageStatsService extends Service {
   static inject = ['sessionPersistence', 'storageDomain']
 
   /** Per-day totals keyed by local day. */
@@ -198,6 +215,41 @@ export class UsageStatsService extends TypertRemoteService {
     this.ctx.effect(() => this.ctx.on('session/flush', (session: Session) => {
       this.dirtySessions.set(session.id, (this.dirtySessions.get(session.id) ?? 0) + 1)
     }), 'usageStats.flushInvalidation')
+    // A headless profile composes no web server; the aggregate still folds and
+    // seeds from the checkpoint there, it just serves no route.
+    this.ctx.inject(['webServer'], (scoped) => {
+      scoped.effect(() => scoped.webServer.register({
+        kind: 'exact',
+        path: USAGE_STATS_PATH,
+        handler: async (req, res) => { await this.serve(req, res) },
+      }), `usageStats: GET ${USAGE_STATS_PATH}`)
+    })
+  }
+
+  /**
+   * Answer one route request. The browser half owns the query it sends, so a
+   * malformed one is a client defect and reports as a plain 400 rather than a
+   * silent default.
+   * @param req - the HTTP request owning the query string.
+   * @param res - the response this handler completes.
+   */
+  private async serve(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    if (req.method !== 'GET') {
+      res.setHeader('allow', 'GET')
+      sendJson(res, 405, { message: `usage-stats accepts GET, received ${String(req.method)}` })
+      return
+    }
+    // Node always sets url on server requests; String keeps that fact local.
+    const parsed = parseUsageStatsQuery(new URL(String(req.url), 'http://localhost').search)
+    if (!parsed.ok) {
+      sendJson(res, 400, { message: parsed.message })
+      return
+    }
+    try {
+      sendJson(res, 200, await this.stats(parsed.request))
+    } catch (error) {
+      sendJson(res, 500, { message: error instanceof Error ? error.message : String(error) })
+    }
   }
 
   /**
@@ -206,7 +258,6 @@ export class UsageStatsService extends TypertRemoteService {
    * @param request - the requested window length (or a single `date`), plus the model filter.
    * @returns the requested day/window, oldest first.
    */
-  @Remote('stats')
   async stats(request: UsageStatsRequest): Promise<UsageStatsValue> {
     await this.fold()
     if (request.date !== undefined) {

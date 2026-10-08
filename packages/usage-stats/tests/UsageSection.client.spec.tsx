@@ -13,11 +13,11 @@ afterEach(() => {
   cleanup()
   vi.useRealTimers()
 })
-import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
-import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+import { useSyncExternalStore } from 'react'
+import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { UsageStatsDay, UsageStatsHour, UsageStatsRequest, UsageStatsValue } from '../src/types.ts'
 import { UsageSection } from '../src/client/UsageSection.tsx'
-import { UsageStatsStore, type UsageStatsRemote } from '../src/client/store.ts'
+import { UsageStatsStore, type UsageStatsFetch } from '../src/client/store.ts'
 import { zh } from '../src/client/locales.ts'
 import styles from '../src/client/UsageSection.module.css'
 
@@ -35,13 +35,22 @@ function day(
   return { date, input, cacheRead, output, searches, requests, models: {}, ...(hours !== undefined ? { hours } : {}) }
 }
 
-function remoteWith(value: UsageStatsValue): UsageStatsRemote {
-  return { stats: () => Promise.resolve<RemoteResult<UsageStatsValue>>({ ok: true, value }) }
+function fetchWith(value: UsageStatsValue): UsageStatsFetch {
+  return () => Promise.resolve(value)
 }
 
-function injected(remote: UsageStatsRemote) {
-  const controller = new UsageStatsStore(remote)
-  return { controller, useSnapshot: bindSnapshotSelector(controller.store), t }
+/**
+ * Test stand-in for the renderer's snapshot binding: one uSES subscription to
+ * the store source, which is what the shipped renderer composes at its own
+ * binding site.
+ */
+function bindSnapshot<T>(store: SnapshotStore<T>): () => T {
+  return () => useSyncExternalStore(store.subscribe, store.getSnapshot)
+}
+
+function injected(fetchStats: UsageStatsFetch) {
+  const controller = new UsageStatsStore(fetchStats)
+  return { controller, useSnapshot: bindSnapshot(controller.store), t }
 }
 
 describe('UsageSection', () => {
@@ -56,7 +65,7 @@ describe('UsageSection', () => {
       buckets: [day('2026-08-17', 1200, 0, 300, 2, 5), day('2026-08-18', 800, 400, 100, 1, 7)],
       models: [],
     }
-    render(<UsageSection {...injected(remoteWith(value))} />)
+    render(<UsageSection {...injected(fetchWith(value))} />)
     await waitFor(() => { expect(screen.getByText('用量')).toBeTruthy() })
     // Title carries the period token total (input + output = 2,400 across the
     // window); the chart legend names the three series.
@@ -75,13 +84,11 @@ describe('UsageSection', () => {
 
   it('reloads with the new window when a range button is clicked', async () => {
     const requests: UsageStatsRequest[] = []
-    const remote: UsageStatsRemote = {
-      stats: (request) => {
-        requests.push(request)
-        return Promise.resolve({ ok: true, value: { days: request.days, buckets: [day('2026-08-18', 5, 0, 1)], models: [] } })
-      },
+    const fetchStats: UsageStatsFetch = (request) => {
+      requests.push(request)
+      return Promise.resolve({ days: request.days, buckets: [day('2026-08-18', 5, 0, 1)], models: [] })
     }
-    render(<UsageSection {...injected(remote)} />)
+    render(<UsageSection {...injected(fetchStats)} />)
     await waitFor(() => { expect(screen.getByRole('button', { name: '7天' })).toBeTruthy() })
     fireEvent.click(screen.getByRole('button', { name: '7天' }))
     await waitFor(() => { expect(requests).toContainEqual({ days: 7, models: [] }) })
@@ -89,13 +96,11 @@ describe('UsageSection', () => {
 
   it('treats today as a one-day window', async () => {
     const requests: UsageStatsRequest[] = []
-    const remote: UsageStatsRemote = {
-      stats: (request) => {
-        requests.push(request)
-        return Promise.resolve({ ok: true, value: { days: request.days, date: request.date, buckets: [day('2026-08-18', 5, 0, 1)], models: [] } })
-      },
+    const fetchStats: UsageStatsFetch = (request) => {
+      requests.push(request)
+      return Promise.resolve({ days: request.days, date: request.date, buckets: [day('2026-08-18', 5, 0, 1)], models: [] })
     }
-    render(<UsageSection {...injected(remote)} />)
+    render(<UsageSection {...injected(fetchStats)} />)
     // The section defaults to the single-day today view, so its first load
     // requests today's date as a one-day window.
     await waitFor(() => { expect(requests).toHaveLength(1) })
@@ -109,7 +114,7 @@ describe('UsageSection', () => {
       buckets: [day('2026-08-18', 400, 120, 90, 3, 4)],
       models: [],
     }
-    render(<UsageSection {...injected(remoteWith(value))} />)
+    render(<UsageSection {...injected(fetchWith(value))} />)
     await waitFor(() => { expect(screen.getByRole('button', { name: '今天' })).toBeTruthy() })
     // Today's grand total (input + output = 490) sits next to the chart title.
     expect(screen.getAllByText((_, el) => el?.textContent?.includes('490') === true).length).toBeGreaterThanOrEqual(1)
@@ -117,7 +122,7 @@ describe('UsageSection', () => {
 
   it('shows the empty state when the window has no usage', async () => {
     const value: UsageStatsValue = { days: 7, buckets: [day('2026-08-18', 0, 0, 0)], models: [] }
-    render(<UsageSection {...injected(remoteWith(value))} />)
+    render(<UsageSection {...injected(fetchWith(value))} />)
     await waitFor(() => { expect(screen.getByText('这段时间还没有 token 用量')).toBeTruthy() })
   })
 
@@ -127,7 +132,7 @@ describe('UsageSection', () => {
       buckets: [day('2026-08-18', 800, 400, 100, 0, 4)],
       models: [],
     }
-    const { container } = render(<UsageSection {...injected(remoteWith(value))} />)
+    const { container } = render(<UsageSection {...injected(fetchWith(value))} />)
     await waitFor(() => { expect(screen.getByText('今日 Tokens')).toBeTruthy() })
     const bar = container.querySelector(`.${styles['bar']}`) as HTMLElement
     expect(bar).toBeTruthy()
@@ -141,13 +146,11 @@ describe('UsageSection', () => {
 
   it('shows an error and reloads when retry is clicked', async () => {
     let calls = 0
-    const remote: UsageStatsRemote = {
-      stats: () => {
-        calls += 1
-        return Promise.reject(new Error('socket closed'))
-      },
+    const fetchStats: UsageStatsFetch = () => {
+      calls += 1
+      return Promise.reject(new Error('socket closed'))
     }
-    render(<UsageSection {...injected(remote)} />)
+    render(<UsageSection {...injected(fetchStats)} />)
     await waitFor(() => { expect(screen.getByText(/socket closed/)).toBeTruthy() })
     expect(calls).toBe(1)
     fireEvent.click(screen.getByRole('button', { name: '重试' }))
@@ -157,16 +160,11 @@ describe('UsageSection', () => {
   it('refetches on every entry instead of showing the first visit stale totals', async () => {
     let calls = 0
     let value = 100
-    const remote: UsageStatsRemote = {
-      stats: () => {
-        calls += 1
-        return Promise.resolve({
-          ok: true,
-          value: { days: 30, buckets: [day('2026-08-18', value, 0, 1)], models: [] },
-        })
-      },
+    const fetchStats: UsageStatsFetch = () => {
+      calls += 1
+      return Promise.resolve({ days: 30, buckets: [day('2026-08-18', value, 0, 1)], models: [] })
     }
-    const shared = injected(remote)
+    const shared = injected(fetchStats)
     // First visit consumes the shared store, which stays 'ready' between
     // mounts, so the page keeps that cached snapshot. Re-entering the section
     // (a fresh mount against the same controller) must reload rather than
@@ -201,7 +199,7 @@ describe('UsageSection', () => {
       buckets: [day('2026-08-18', 200, 30, 30, 0, 2, hours)],
       models: [],
     }
-    const { container } = render(<UsageSection {...injected(remoteWith(value))} />)
+    const { container } = render(<UsageSection {...injected(fetchWith(value))} />)
     await waitFor(() => { expect(screen.getByText('今日 Tokens')).toBeTruthy() })
     // Only hours up to the cut (00:00–15:00, inclusive) are drawn — never the
     // whole 24-hour day.
@@ -232,7 +230,7 @@ describe('UsageSection', () => {
       buckets: [day('2026-08-18', 5, 0, 1, 0, 1, hours)],
       models: [],
     }
-    const { container } = render(<UsageSection {...injected(remoteWith(value))} />)
+    const { container } = render(<UsageSection {...injected(fetchWith(value))} />)
     await waitFor(() => { expect(screen.getByText('今日 Tokens')).toBeTruthy() })
     expect(container.querySelectorAll(`.${styles['bar']}`)).toHaveLength(1)
     expect(container.querySelector(`.${styles['chartHourly']}`)).not.toBeNull()
@@ -257,7 +255,7 @@ describe('UsageSection', () => {
       buckets: [day('2026-08-18', 40, 0, 5, 0, 1, hours)],
       models: [],
     }
-    const { container } = render(<UsageSection {...injected(remoteWith(value))} />)
+    const { container } = render(<UsageSection {...injected(fetchWith(value))} />)
     await waitFor(() => { expect(screen.getByText('今日 Tokens')).toBeTruthy() })
     expect(container.querySelectorAll(`.${styles['bar']}`)).toHaveLength(3)
     expect(screen.getByText('00:00')).toBeTruthy()
@@ -279,17 +277,12 @@ describe('UsageSection', () => {
       requests: hour === 10 || hour === 14 ? 1 : 0,
       searches: 0,
     }))
-    const remote: UsageStatsRemote = {
-      stats: request => Promise.resolve<RemoteResult<UsageStatsValue>>({
-        ok: true,
-        value: {
-          days: 1,
-          buckets: [day(request.date ?? '2026-08-18', 200, 30, 30, 0, 2, hours)],
-          models: [],
-        },
-      }),
-    }
-    const { container } = render(<UsageSection {...injected(remote)} />)
+    const fetchStats: UsageStatsFetch = request => Promise.resolve({
+      days: 1,
+      buckets: [day(request.date ?? '2026-08-18', 200, 30, 30, 0, 2, hours)],
+      models: [],
+    })
+    const { container } = render(<UsageSection {...injected(fetchStats)} />)
     await waitFor(() => { expect(screen.getByText('今日 Tokens')).toBeTruthy() })
     // Open the dropdown calendar and pick a past day (relative to the fake
     // today); the grid anchors to the selected month, which is today's month.
@@ -315,7 +308,7 @@ describe('UsageSection', () => {
       buckets: [day('2026-08-17', 1200, 0, 300, 2, 5), day('2026-08-18', 800, 400, 100, 1, 7)],
       models: [],
     }
-    render(<UsageSection {...injected(remoteWith(value))} />)
+    render(<UsageSection {...injected(fetchWith(value))} />)
     await waitFor(() => { expect(screen.getByText('用量')).toBeTruthy() })
     // Metric card values: input=2000, cacheRead=400, output=400, requests=12.
     expect(screen.getAllByText((_, el) => el?.textContent === '2,000').length).toBeGreaterThanOrEqual(1)
