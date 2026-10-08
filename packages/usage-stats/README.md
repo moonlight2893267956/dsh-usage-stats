@@ -3,7 +3,7 @@ description: "Per-day token-usage totals across every session on this device, fo
 kind: "package-reference"
 ---
 
-# @deepseek-ai/dsh-usage-stats
+# @moonlight2893267956/dsh-usage-stats
 
 English | [中文](README.zh.md)
 
@@ -11,8 +11,20 @@ English | [中文](README.zh.md)
 
 Use this package to report how many tokens this device has spent, aggregated by day across every session rather than only the one on screen. It folds the durable session logs into per-day totals of input, cache-read, and output tokens plus web-search counts, and serves them to clients through one read-only HTTP route. Because the log is the source of truth, totals survive restarts and backfill history; a storage checkpoint makes a warm start fold only new events. Deleted sessions keep their contribution, and unreadable logs are skipped rather than failing the query.
 
+## Install
+
+Install into a profile; the plugin belongs to the profile rather than to a dsh checkout.
+
+```sh
+dsh plugin --profile web add github:moonlight2893267956/dsh-usage-stats#path:packages/usage-stats
+dsh plugin --profile web add /absolute/path/to/dsh-usage-stats/packages/usage-stats
+```
+
+The trailing `#path:` selects the package inside this repository — the repository root is a workspace, not the plugin. A git-hosted install builds the package through its `prepare` script, which pnpm blocks until you allow it: run the command once, copy the exact key it prints into `allowBuilds` in the profile's `pnpm-workspace.yaml`, then run it again. Restart dsh afterwards; the Usage page appears under Settings.
+
 ## Table of Contents
 
+- [Install](#install)
 - [Use this package](#use-this-package)
 - [Understand the implementation](#understand-the-implementation)
 - [Further Exploration](#further-exploration)

@@ -3,7 +3,7 @@ description: "跨本设备所有会话的按天 token 用量总量，从持久�
 kind: "package-reference"
 ---
 
-# @deepseek-ai/dsh-usage-stats
+# @moonlight2893267956/dsh-usage-stats
 
 [English](README.md) | 中文
 
@@ -11,8 +11,20 @@ kind: "package-reference"
 
 用这个包报告本设备花了多少 token，按天聚合、覆盖所有会话，而不只是当前打开的那一个。它把持久化会话日志折叠成按天的输入、缓存命中、输出 token 总量以及网络搜索次数，并通过一条只读 HTTP 路由提供给客户端。因为日志就是事实来源，总量能跨重启存活并回填历史；存储检查点让热启动只折叠新事件。已删除的会话保留其贡献，无法读取的日志会被跳过而不是让查询失败。
 
+## 安装
+
+装进 profile；插件属于 profile，而不属于某个 dsh 检出目录。
+
+```sh
+dsh plugin --profile web add github:moonlight2893267956/dsh-usage-stats#path:packages/usage-stats
+dsh plugin --profile web add /absolute/path/to/dsh-usage-stats/packages/usage-stats
+```
+
+末尾的 `#path:` 用来选中本仓库内的那个包 —— 仓库根是 workspace，不是插件本身。从 git 安装会通过 `prepare` 脚本自行构建，而 pnpm 会拦截该脚本直到你放行：先跑一次命令，把它打印的完整键填进 profile 的 `pnpm-workspace.yaml` 的 `allowBuilds`，再跑一次。之后重启 dsh，「用量」页出现在设置里。
+
 ## 目录
 
+- [安装](#install)
 - [使用本包](#use-this-package)
 - [理解实现](#understand-the-implementation)
 - [延伸阅读](#further-exploration)
