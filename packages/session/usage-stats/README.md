@@ -64,7 +64,7 @@ A single-day request also carries 24 hourly buckets; a trailing window carries p
 
 ### Fold semantics
 
-The fold reads the durable log, not the model-visible surface, so tokens a later compaction hid from the model still count because they were consumed. Each query folds only the events appended since the previous fold, and a per-lifecycle file revision skips sessions whose log did not advance, so a warm query reads no unchanged log bytes.
+The fold reads the durable log, not the model-visible surface, so tokens a later compaction hid from the model still count because they were consumed. The first query in a process reconciles the durable session catalog; later queries inspect only sessions that crossed a durability checkpoint, so reopening Usage does not enumerate every stored session. A per-lifecycle file revision still skips logs whose bytes did not advance.
 
 ### Failure and recovery
 
@@ -78,7 +78,7 @@ A query never fails because one session log is corrupt: the fold warns, skips th
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-`UsageStatsService` keeps one in-memory aggregate: per-day buckets keyed by local calendar day, each carrying 24 hourly buckets and a per-model map, plus a fold cursor and last-seen revision per session lifecycle. `foldAll` walks `sessionPersistence.list()`, skips lifecycles whose revision is unchanged, opens each remaining log for reading, skips the fork-inherited prefix (`inheritedEventCount`) so a forked child never double-counts its parent, and folds every event after the cursor. `foldEvent` adds `assistant/message` usage to the day, hour, and model accumulators, and counts `tool/call` events named `web_search`. Folds serialize behind one promise tail, so concurrent queries share a single scan. After a mutated fold the service writes the whole checkpoint back through the `usage_stats` storage domain as one global value — accumulated totals plus per-session progress, with unreadable sessions excluded so a restart re-attempts them.
+`UsageStatsService` keeps one in-memory aggregate: per-day buckets keyed by local calendar day, each carrying 24 hourly buckets and a per-model map, plus a fold cursor and last-seen revision per session lifecycle. Its first fold walks `sessionPersistence.list()`; later folds inspect only sessions invalidated by `session/flush`. It skips unchanged revisions, opens each remaining log for reading, skips the fork-inherited prefix (`inheritedEventCount`) so a forked child never double-counts its parent, and folds every event after the cursor. `foldEvent` adds `assistant/message` usage to the day, hour, and model accumulators, and counts `tool/call` events named `web_search`. Folds serialize behind one promise tail, so concurrent queries share a single scan. After a mutated fold the service writes the whole checkpoint back through the `usage_stats` storage domain as one global value — accumulated totals plus per-session progress, with unreadable sessions excluded so a restart re-attempts them.
 
 </details>
 

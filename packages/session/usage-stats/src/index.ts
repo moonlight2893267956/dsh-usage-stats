@@ -11,7 +11,8 @@
 
 import { Service, type Context } from '@deepseek-ai/cordis'
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
-import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
+import type { Session } from '@deepseek-ai/dsh-session'
+import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session/types'
 import { SessionPersistenceRevision } from '@deepseek-ai/dsh-session-persistence'
 import type { DomainGlobal } from '@deepseek-ai/dsh-storage-domain'
 // Type-only: pulls the `sessionPersistence` Context merge into this program.
@@ -164,6 +165,10 @@ export class UsageStatsService extends TypertRemoteService {
   private revisions = new Map<string, SessionPersistenceRevision>()
   /** Lifecycle keys whose log could not be read this process; never persisted. */
   private readonly unreadable = new Set<string>()
+  /** Durable session lifecycles whose next query must refresh their revision. */
+  private readonly dirtySessions = new Map<SessionId, number>()
+  /** The first fold in this process has reconciled the durable session catalog. */
+  private catalogLoaded = false
   /** Serialize folds so a live query never doubles a concurrent one. */
   private foldTail: Promise<void> = Promise.resolve()
   private checkpoint?: DomainGlobal<UsageStatsCheckpoint>
@@ -190,6 +195,9 @@ export class UsageStatsService extends TypertRemoteService {
       this.cursors.set(key, session.cursor)
       this.revisions.set(key, SessionPersistenceRevision(session.revision))
     }
+    this.ctx.effect(() => this.ctx.on('session/flush', (session: Session) => {
+      this.dirtySessions.set(session.id, (this.dirtySessions.get(session.id) ?? 0) + 1)
+    }), 'usageStats.flushInvalidation')
   }
 
   /**
@@ -225,21 +233,24 @@ export class UsageStatsService extends TypertRemoteService {
   }
 
   /**
-   * Fold every session's newly durable events into the per-day totals, then
-   * write back the checkpoint when anything changed.
+   * Fold newly durable events into the per-day totals, then write back the
+   * checkpoint when anything changed.
    *
-   * Sessions whose log revision is unchanged since the last fold carry no new
-   * events, so they are skipped without a log read — this is the hot path for
-   * a warm query, where most durable logs have not advanced between calls. A
-   * session with no recorded revision (fresh lifecycle, a fresh process cold
-   * start, or a log the checkpoint never advanced past) folds from seq 0,
-   * preserving the cold backfill semantics. An unreadable log warns, skips,
-   * and records its revision only in memory (never in the checkpoint), so a
+   * The first fold in a process lists the durable catalog, preserving cold
+   * backfill and restart reconciliation. Later folds inspect only sessions
+   * marked by the durable `session/flush` lifecycle, so reopening the Usage
+   * page does not repeatedly enumerate every stored session. A session with
+   * no recorded revision folds from seq 0. An unreadable log warns, skips, and
+   * records its revision only in memory (never in the checkpoint), so a
    * corrupt session is re-attempted — and re-warned — on the next restart.
    */
   private async foldAll(): Promise<void> {
     let changed = false
-    for (const { header, revision } of await this.ctx.sessionPersistence.list()) {
+    const dirty = this.catalogLoaded ? new Map(this.dirtySessions) : undefined
+    const snapshots = dirty === undefined
+      ? await this.ctx.sessionPersistence.list()
+      : await this.changedSnapshots(dirty)
+    for (const { header, revision } of snapshots) {
       const key = `${header.id}:${header.createdAt}`
       // The revision identity covers the whole log, so an unchanged revision
       // means the cursor is already at the durable tail — no bytes to fold.
@@ -274,7 +285,25 @@ export class UsageStatsService extends TypertRemoteService {
       this.unreadable.delete(key)
       changed = true
     }
+    if (dirty !== undefined) {
+      for (const [id, generation] of dirty) {
+        if (this.dirtySessions.get(id) === generation) this.dirtySessions.delete(id)
+      }
+    }
+    this.catalogLoaded = true
     if (changed) await this.persistCheckpoint()
+  }
+
+  /**
+   * Observe only sessions that crossed a durability barrier since the last
+   * catalog reconciliation. A vanished session has no new durable events, so
+   * it is omitted without changing the accumulated historical totals.
+   * @param dirty - the invalidation generation sampled at fold start.
+   * @returns current snapshots for still-stored dirty sessions.
+   */
+  private async changedSnapshots(dirty: ReadonlyMap<SessionId, number>) {
+    const snapshots = await Promise.all([...dirty.keys()].map(id => this.ctx.sessionPersistence.stat(id)))
+    return snapshots.filter((snapshot): snapshot is NonNullable<typeof snapshot> => snapshot !== undefined)
   }
 
   /**

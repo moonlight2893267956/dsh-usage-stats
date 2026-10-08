@@ -11,7 +11,7 @@ import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import Storage from '@deepseek-ai/dsh-storage'
 import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
 import * as StorageSqlite from '@deepseek-ai/dsh-storage-sqlite'
-import { ToolCallId, createAssistantMessage } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, createAssistantMessage, createToolResultMessage } from '@deepseek-ai/dsh-llm'
 import UsageStatsService from '../src/index.ts'
 import type { UsageStatsValue } from '../src/index.ts'
 
@@ -105,10 +105,16 @@ describe('usage-stats through a real Loader composition', () => {
 
     const session = first.sessions.create(SessionId('loader-usage'), { meta: { cwd: root } })
     const writer = await first.sessionPersistence.create(session.header)
+    const callId = ToolCallId('call-1')
     const message = createAssistantMessage({
-      content: [{ type: 'text', text: 'answer' }],
+      content: [
+        { type: 'text', text: 'answer' },
+        { type: 'tool-call', id: callId, name: 'web_search', arguments: '{}' },
+      ],
       source: { provider: 'test', model: 'test' },
     })
+    session.append('turn/start', { turn: 1 })
+    session.append('step/start', { turn: 1, step: 1 })
     session.append('assistant/message', {
       turn: 1,
       step: 1,
@@ -119,14 +125,25 @@ describe('usage-stats through a real Loader composition', () => {
     session.append('tool/call', {
       turn: 1,
       step: 1,
-      callId: ToolCallId('call-1'),
+      callId,
       name: 'web_search',
       arguments: '{}',
     })
+    session.append('tool/result', {
+      turn: 1,
+      step: 1,
+      message: createToolResultMessage({
+        callId,
+        content: [{ type: 'text', text: 'result' }],
+        isError: false,
+      }),
+    }, { surfaceOp: 'append' })
+    session.append('step/end', { turn: 1, step: 1 })
+    session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
     // Force the batched writes to the durable log before the fold reads them.
     await first.sessions.flush(session)
     await writer.close()
-    await expect(readStoredEventCount(first, session.id)).resolves.toBe(2)
+    await expect(readStoredEventCount(first, session.id)).resolves.toBe(7)
 
     const value = await first.usageStats.stats({ days: 30 })
     expect(bucketFor(value, todayKey())).toMatchObject({ input: 150, output: 20, cacheRead: 50, searches: 1 })

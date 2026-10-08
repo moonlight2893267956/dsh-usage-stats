@@ -80,7 +80,11 @@ function otherToolEvent(time: number): SessionEvent {
   return { type: 'tool/call', seq: SessionSeq(seq++), time, data: { turn: 1, step: 1, callId: ToolCallId(`call-${seq}`), name: 'read', arguments: '{}' } }
 }
 
-function stubPersistence(sessions: StubSession[], openCalls?: { value: number }): unknown {
+function stubPersistence(
+  sessions: StubSession[],
+  openCalls?: { value: number },
+  listCalls?: { value: number },
+): unknown {
   // Revision tracks each session's event count, mirroring a real backend whose
   // stat-derived revision (dev/ino/size/mtime/ctime) advances on every append
   // and stays put while the log does not change.
@@ -90,7 +94,11 @@ function stubPersistence(sessions: StubSession[], openCalls?: { value: number })
       revision: SessionPersistenceRevision(`${session.meta.id}:${session.events.length}`),
     }))
   return {
-    list: () => Promise.resolve(snapshots()),
+    list: () => {
+      if (listCalls !== undefined) listCalls.value += 1
+      return Promise.resolve(snapshots())
+    },
+    stat: (id: SessionId) => Promise.resolve(snapshots().find(snapshot => snapshot.header.id === id)),
     open: (id: SessionId, access: 'read' | 'write') => {
       if (openCalls !== undefined) openCalls.value += 1
       expect(access).toBe('read')
@@ -119,13 +127,15 @@ interface MountOptions {
   root?: string
   /** Mutated by each persistence `open`, to assert how many logs were read. */
   openCalls?: { value: number }
+  /** Mutated by each full catalog scan. */
+  listCalls?: { value: number }
 }
 
 async function mount(sessions: StubSession[], options: MountOptions = {}): Promise<Context> {
   const root = options.root ?? await mkdtemp(join(tmpdir(), 'dsh-usage-stats-'))
   if (options.root === undefined) roots.push(root)
   const ctx = new Context()
-  ctx.provide('sessionPersistence', stubPersistence(sessions, options.openCalls))
+  ctx.provide('sessionPersistence', stubPersistence(sessions, options.openCalls, options.listCalls))
   await ctx.plugin(Storage)
   await ctx.plugin({ name: storageJsonName, inject: storageJsonInject, apply: storageJsonApply, Config: storageJsonConfig }, { root })
   await ctx.plugin(
@@ -214,6 +224,7 @@ describe('UsageStatsService', () => {
       const first = await ctx.usageStats.stats({ days: 7 })
       expect(bucketFor(first, 0)).toMatchObject({ input: 10, output: 1 })
       session.events.push(usageEvent(dayTime(0), { inputTokens: 5, outputTokens: 2 }), searchEvent(dayTime(0)))
+      await ctx.emit('session/flush', { id: session.meta.id } as never)
       const second = await ctx.usageStats.stats({ days: 7 })
       expect(bucketFor(second, 0)).toMatchObject({ input: 15, output: 3, requests: 2, searches: 1 })
     } finally {
@@ -485,6 +496,20 @@ describe('UsageStatsService', () => {
 })
 
 describe('UsageStatsService checkpoint persistence', () => {
+  it('does not re-enumerate the durable catalog after the first process fold', async () => {
+    const listCalls = { value: 0 }
+    const ctx = await mount([
+      { meta: header('a'), events: [usageEvent(dayTime(1), { inputTokens: 42, outputTokens: 8 })] },
+    ], { listCalls })
+    try {
+      await ctx.usageStats.stats({ days: 7 })
+      await ctx.usageStats.stats({ days: 7 })
+      expect(listCalls.value).toBe(1)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('cold start with no checkpoint backfills once, then skips unchanged logs', async () => {
     const sessions: StubSession[] = [
       { meta: header('a'), events: [usageEvent(dayTime(1), { inputTokens: 42, outputTokens: 8 }), searchEvent(dayTime(1))] },

@@ -64,7 +64,7 @@ kind: "package-reference"
 
 ### 折叠语义
 
-折叠读取持久化日志，而不是模型可见的接口面，因此后来被压缩对模型隐藏的 token 仍然计数，因为它们确实被消耗了。每次查询只折叠自上次折叠以来新增的事件，并且每个生命周期的文件 revision 会跳过日志未推进的会话，所以热查询不读任何未变化的日志字节。
+折叠读取持久化日志，而不是模型可见的接口面，因此后来被压缩对模型隐藏的 token 仍然计数，因为它们确实被消耗了。进程中的首次查询会对账持久化会话目录；后续查询只检查跨过持久化检查点的会话，因此重新打开「用量」页不会遍历全部已存会话。每个生命周期的文件 revision 仍会跳过日志字节未推进的会话。
 
 ### 失败与恢复
 
@@ -78,7 +78,7 @@ kind: "package-reference"
 <details>
 <summary>实现内部细节 —— 点击展开</summary>
 
-`UsageStatsService` 维护一份内存聚合：按本地自然日索引的按天桶，每个桶带 24 个按小时的桶和一份按模型的映射，外加每个会话生命周期一个折叠游标和最近一次 revision。`foldAll` 遍历 `sessionPersistence.list()`，跳过 revision 未变化的生命周期，为其余每个日志打开读句柄，跳过 fork 继承的前缀（`inheritedEventCount`）以免 fork 出的子会话重复计入其父会话，并折叠游标之后的每个事件。`foldEvent` 把 `assistant/message` 的用量加到天、小时和模型累加器上，并统计名为 `web_search` 的 `tool/call` 事件。各次折叠串行排在一个 promise 尾部之后，因此并发查询共享同一次扫描。某次折叠有变动之后，服务会把整个检查点作为一个全局值写回 `usage_stats` 存储域——累计总量加上逐会话进度，不可读的会话被排除，以便重启后重试。
+`UsageStatsService` 维护一份内存聚合：按本地自然日索引的按天桶，每个桶带 24 个按小时的桶和一份按模型的映射，外加每个会话生命周期一个折叠游标和最近一次 revision。首次折叠遍历 `sessionPersistence.list()`；后续折叠只检查被 `session/flush` 标记为失效的会话。它跳过 revision 未变化的生命周期，为其余每个日志打开读句柄，跳过 fork 继承的前缀（`inheritedEventCount`）以免 fork 出的子会话重复计入其父会话，并折叠游标之后的每个事件。`foldEvent` 把 `assistant/message` 的用量加到天、小时和模型累加器上，并统计名为 `web_search` 的 `tool/call` 事件。各次折叠串行排在一个 promise 尾部之后，因此并发查询共享同一次扫描。某次折叠有变动之后，服务会把整个检查点作为一个全局值写回 `usage_stats` 存储域——累计总量加上逐会话进度，不可读的会话被排除，以便重启后重试。
 
 </details>
 
