@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Usage statistics",
+    "description": "Per-day token usage folded from every stored session, shown on a Usage settings page."
+  }
+}

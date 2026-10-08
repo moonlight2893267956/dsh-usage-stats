@@ -1,0 +1,12 @@
+# Usage statistics: one row carries both faces. The Host half folds the durable
+# session logs into per-day token totals and serves them over the `usageStats`
+# Typert Remote; the browser half mounts that Remote and renders the Usage
+# settings page.
+#
+# The `usage_stats` checkpoint rides whatever storage backend the profile
+# already runs. A deployment that wants the SQLite medium adds its own
+# `storage-sqlite` row plus a `storage-domain` `routes` override; this plugin
+# takes no position on the medium.
+- insert:
+    - id: usage-stats
+      name: '@moonlight2893267956/dsh-usage-stats'

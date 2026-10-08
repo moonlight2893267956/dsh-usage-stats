@@ -1,0 +1,17 @@
+{
+  "name": "@moonlight2893267956/dsh-usage-stats-workspace",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Workspace root for the dsh-usage-stats plugin. The published artifact is packages/usage-stats.",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "pnpm --filter @moonlight2893267956/dsh-usage-stats run build",
+    "typecheck": "pnpm --filter @moonlight2893267956/dsh-usage-stats run typecheck",
+    "test": "pnpm --filter @moonlight2893267956/dsh-usage-stats run test"
+  },
+  "license": "MIT"
+}
