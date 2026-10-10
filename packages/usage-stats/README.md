@@ -60,7 +60,7 @@ A deployment that wants the SQLite medium for the checkpoint adds both rows belo
       usage_stats: sqlite
 ```
 
-The plugin declares no config. It injects `sessionPersistence` and `storageDomain`: without `sessionPersistence` the fiber stays pending, and without `storageDomain` activation fails loud. The shipped Web composition leaves `usage_stats` on the `json` default, because `storage-sqlite` opens its database on activation and that composition also packs the browser-only Worker deployment, whose `node:sqlite` stub refuses the constructor; routing the domain to SQLite is a later patch layer's choice.
+`refreshPollIntervalMs` controls browser polling during reconciliation (default 1000 ms, integer range 250–10000 ms). It injects `sessionPersistence` and `storageDomain`: without `sessionPersistence` the fiber stays pending, and without `storageDomain` activation fails loud. The shipped Web composition leaves `usage_stats` on the `json` default, because `storage-sqlite` opens its database on activation and that composition also packs the browser-only Worker deployment, whose `node:sqlite` stub refuses the constructor; routing the domain to SQLite is a later patch layer's choice.
 
 ### What the figures mean
 
@@ -78,6 +78,16 @@ A single-day request also carries 24 hourly buckets; a trailing window carries p
 
 The fold reads the durable log, not the model-visible surface, so tokens a later compaction hid from the model still count because they were consumed. The first query in a process reconciles the durable session catalog; later queries inspect only sessions that crossed a durability checkpoint, so reopening Usage does not enumerate every stored session. A per-lifecycle file revision still skips logs whose bytes did not advance.
 
+### Reading the chart
+
+Each column is one bucket — an hour for a single day, a date for a window. A column stacks input misses, cache hits, and output; a bucket with no usage keeps a mark on the baseline rail, so an untouched hour reads as a measured zero instead of missing. Hovering a column, or moving keyboard focus to it, shows that bucket's exact figures. The entrance cascade and hover motion are dropped under `prefers-reduced-motion`.
+
+### Cached display and freshness
+
+The Usage page reads `GET /dsh-usage-stats/snapshot` with the same `days`, `date`, and `models` query fields as the strict `GET /dsh-usage-stats/stats` route. A snapshot returns `value`, `freshness`, `revision`, `error`, and `refreshPollIntervalMs`. It displays the last complete saved aggregate immediately while `freshness: pending` labels it as updating. No checkpoint means `value: null` until the initial backfill completes; an unreconciled zero is not an empty-history result. Polling stops after reconciliation or a failure and when the page closes. `retry=1` explicitly retries a failed background scan.
+
+Reconciliation shares one task and publishes the full totals and cursors only after their atomic save succeeds. A failed scan or save retains the previous committed view and its progress; the page keeps that chart visible with Retry. The checkpoint stays at schema version 1. Cached display removes reconciliation from first paint, not from the total background workload; old-generation revisions may still require expensive migration validation.
+
 ### Failure and recovery
 
 A query never fails because one session log is corrupt: the fold warns, skips that session, and records its revision in memory only, so a fresh process retries it. A lost or stale checkpoint costs a longer tail replay on the next cold read and never loses data, because the logs remain the authority. A session deleted from the device keeps its contribution.
@@ -90,7 +100,7 @@ A query never fails because one session log is corrupt: the fold warns, skips th
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-`UsageStatsService` keeps one in-memory aggregate: per-day buckets keyed by local calendar day, each carrying 24 hourly buckets and a per-model map, plus a fold cursor and last-seen revision per session lifecycle. Its first fold walks `sessionPersistence.list()`; later folds inspect only sessions invalidated by `session/flush`. It skips unchanged revisions, opens each remaining log for reading, skips the fork-inherited prefix (`inheritedEventCount`) so a forked child never double-counts its parent, and folds every event after the cursor. `foldEvent` adds `assistant/message` usage to the day, hour, and model accumulators, and counts `tool/call` events named `web_search`. Folds serialize behind one promise tail, so concurrent queries share a single scan. After a mutated fold the service writes the whole checkpoint back through the `usage_stats` storage domain as one global value — accumulated totals plus per-session progress, with unreadable sessions excluded so a restart re-attempts them.
+`UsageStatsService` keeps one in-memory aggregate: per-day buckets keyed by local calendar day, each carrying 24 hourly buckets and a per-model map, plus a fold cursor and last-seen revision per session lifecycle. Its first fold walks `sessionPersistence.list()`; later folds inspect only sessions invalidated by `session/flush`. It skips unchanged revisions, opens each remaining log for reading, skips the fork-inherited prefix (`inheritedEventCount`) so a forked child never double-counts its parent, and folds every event after the cursor. `foldEvent` adds `assistant/message` usage to the day, hour, and model accumulators, and counts `tool/call` events named `web_search`. Concurrent queries share one lifecycle-owned task; strict callers also reconcile flushes that arrive while they wait. Cached readers see only the last committed state. After a mutated fold the service writes the whole checkpoint back through the `usage_stats` storage domain as one global value — accumulated totals plus per-session progress, with unreadable sessions excluded so a restart re-attempts them.
 
 </details>
 

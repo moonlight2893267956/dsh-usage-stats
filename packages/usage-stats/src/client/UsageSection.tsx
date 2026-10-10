@@ -172,18 +172,17 @@ function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
   const state = injected.useSnapshot(snapshot => snapshot)
   const [hovered, setHovered] = useState<string | null>(null)
 
-  // The store is a shared singleton whose status stays 'ready' between visits,
-  // so re-entering the settings page must refetch on every mount instead of
-  // only when the snapshot is 'idle' (which happens exactly once). Without
-  // this, leaving and returning shows the first visit's stale totals.
-  useEffect(() => { void controller.load() }, [controller])
+  useEffect(() => {
+    void controller.load()
+    return () => { controller.stop() }
+  }, [controller])
 
-  if (state.status === 'error') {
+  if (state.status === 'error' && !state.hasValue) {
     return (
       <div className={styles['page']}>
         <h2 className={styles['title']}>{t('title')}</h2>
         <p className={styles['error']}>{`${t('state.error')}: ${state.error ?? ''}`}</p>
-        <button type="button" className={styles['retryButton']} onClick={() => { void controller.load() }}>
+        <button type="button" className={styles['retryButton']} onClick={() => { void controller.load(true) }}>
           {t('state.retry')}
         </button>
       </div>
@@ -194,7 +193,7 @@ function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
   const days = state.days
   const availableModels = state.availableModels
   const selectedModels = state.selectedModels
-  const loading = state.status !== 'ready'
+  const loading = !state.hasValue
 
   const totals: Record<'input' | 'cacheRead' | 'output', number> = { input: 0, cacheRead: 0, output: 0 }
   let requests = 0
@@ -281,6 +280,18 @@ function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
         </div>
       </header>
 
+      <div className={styles['refreshStatus']} role="status" aria-live="polite">
+        {state.refreshing && state.hasValue && <span>{t('state.refreshing')}</span>}
+        {state.status === 'error' && state.hasValue && (
+          <>
+            <span>{t('state.refreshError')}</span>
+            <button type="button" className={styles['retryButton']} onClick={() => { void controller.load(true) }}>
+              {t('state.retry')}
+            </button>
+          </>
+        )}
+      </div>
+
       <div className={styles['cards']}>
         <div className={`${styles['card']} ${styles['catInput']}`}>
           <div className={styles['cardHead']}>
@@ -333,7 +344,7 @@ function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
                     ))}
                   </div>
                   <div className={styles['grid']}>
-                    {ticks.slice(1).map(value => (
+                    {ticks.map(value => (
                       <div key={value} className={styles['gridline']} style={{ bottom: `${(value / maxBucket) * 100}%` }} />
                     ))}
                     <div className={styles['bars']} key={days}>
@@ -344,15 +355,20 @@ function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
                         return (
                           <div
                             key={bucket.key}
+                            role="img"
+                            tabIndex={0}
+                            aria-label={t('chart.bar').replace('{label}', bucket.label).replace('{total}', formatFull(total))}
                             className={`${styles['bar']} ${hovered === bucket.key ? styles['barHover'] : ''}`}
                             onMouseEnter={() => { setHovered(bucket.key) }}
                             onMouseLeave={() => { setHovered(current => (current === bucket.key ? null : current)) }}
+                            onFocus={() => { setHovered(bucket.key) }}
+                            onBlur={() => { setHovered(current => (current === bucket.key ? null : current)) }}
                           >
                             {total > 0
                               ? (
                                 <div
                                   className={styles['stack']}
-                                  style={{ height: `${fraction * 100}%`, animationDelay: `${index * 14}ms` }}
+                                  style={{ height: `${fraction * 100}%`, animationDelay: `${Math.min(index, 24) * 10}ms` }}
                                 >
                                   {/* Top-to-bottom: input miss (lightest) →
                                    * cache hit (medium) → output (darkest). */}

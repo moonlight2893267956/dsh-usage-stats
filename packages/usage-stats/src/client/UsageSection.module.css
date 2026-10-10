@@ -1,8 +1,9 @@
 /*
- * Usage settings section. DeepSeek-console inspired: a dark, precise dashboard
- * with compact metric cards, a tall stacked bar chart, thin blue bars, and a
- * black pill tooltip. Colors are baked in so the layout reads the same in
- * every theme.
+ * Usage settings section. DeepSeek-console inspired: compact metric cards, a
+ * stacked bar chart over a visible hour rail, and a black pill tooltip. Every
+ * bucket keeps a mark on the rail, so an hour or day without usage reads as a
+ * measured zero instead of empty canvas. Colors are baked in so the layout
+ * reads the same in every theme.
  */
 
 .page {
@@ -75,6 +76,15 @@
   flex-shrink: 0;
 }
 
+.refreshStatus {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 24px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
 .cards {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -135,6 +145,7 @@
 }
 
 .chart {
+  --plot-height: 232px;
   position: relative;
   padding: 18px 20px 16px;
   background: var(--dsw-alias-bg-layer-2);
@@ -162,7 +173,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 280px;
+  height: var(--plot-height);
   font-size: 12px;
   color: var(--dsw-alias-label-tertiary);
 }
@@ -176,7 +187,7 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  height: 280px;
+  height: var(--plot-height);
   width: 42px;
   flex: none;
   text-align: right;
@@ -190,7 +201,7 @@
 .grid {
   position: relative;
   flex: 1;
-  height: 280px;
+  height: var(--plot-height);
 }
 
 .gridline {
@@ -204,7 +215,7 @@
 
 .bars {
   position: relative;
-  height: 280px;
+  height: var(--plot-height);
   display: flex;
   align-items: flex-end;
   gap: 3px;
@@ -219,14 +230,15 @@
   position: relative;
   flex: 1;
   min-width: 4px;
-  max-width: 28px;
+  max-width: 34px;
   margin: 0 auto;
   height: 100%;
   cursor: pointer;
+  outline: none;
 }
 
 .chartHourly .bar {
-  max-width: 18px;
+  max-width: 46px;
 }
 
 .stack {
@@ -234,21 +246,31 @@
   left: 50%;
   bottom: 0;
   transform: translateX(-50%);
-  width: 75%;
+  width: 72%;
   display: flex;
   flex-direction: column;
   border-radius: 3px 3px 0 0;
   overflow: hidden;
   transform-origin: bottom;
   animation: growUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  /* An in-place data update (a completed reconciliation) resizes the column
+   * instead of snapping it; window changes remount the bars and replay the
+   * cascade above. */
+  transition: height 0.45s cubic-bezier(0.22, 1, 0.36, 1), filter 0.15s ease;
 }
 
 .chartHourly .stack {
-  width: 85%;
+  width: 68%;
 }
 
-.bar:hover .stack {
-  filter: brightness(1.08);
+.bar:hover .stack,
+.barHover .stack {
+  filter: brightness(1.1) saturate(1.05);
+}
+
+.bar:focus-visible .stack {
+  filter: brightness(1.16) saturate(1.05);
+  box-shadow: 0 0 0 2px var(--dsw-alias-bg-layer-2), 0 0 0 3.5px #4f8cff;
 }
 
 .seg {
@@ -257,14 +279,28 @@
   background: var(--cat-color);
 }
 
+/* Every bucket keeps a mark on the rail: an hour or day with no usage reads as
+ * a measured zero rather than absent from the chart. */
 .barEmpty {
   position: absolute;
   left: 50%;
   bottom: 0;
-  width: 50%;
-  height: 0.5px;
-  background: var(--dsw-alias-border-l1);
+  width: 72%;
+  height: 2px;
+  border-radius: 999px;
+  corner-shape: round;
+  background: var(--dsw-alias-border-l2);
   transform: translateX(-50%);
+}
+
+.chartHourly .barEmpty {
+  width: 68%;
+}
+
+.bar:hover .barEmpty,
+.barHover .barEmpty,
+.bar:focus-visible .barEmpty {
+  background: var(--dsw-alias-label-tertiary);
 }
 
 .xAxis {
@@ -407,8 +443,12 @@
     grid-template-columns: 1fr;
   }
 
+  .chart {
+    --plot-height: 196px;
+  }
+
   .chartHourly .bar {
-    max-width: 12px;
+    max-width: 26px;
   }
 }
 
@@ -433,5 +473,21 @@
   to {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stack {
+    animation: none;
+    transition: none;
+  }
+
+  .tip {
+    animation: none;
+  }
+
+  .card,
+  .rangeButton {
+    transition: none;
   }
 }

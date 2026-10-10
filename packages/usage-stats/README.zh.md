@@ -60,7 +60,7 @@ dsh plugin --profile web add /absolute/path/to/dsh-usage-stats/packages/usage-st
       usage_stats: sqlite
 ```
 
-该插件不声明任何配置。它注入 `sessionPersistence` 与 `storageDomain`：没有 `sessionPersistence` 时 fiber 一直 pending，没有 `storageDomain` 则激活时响亮失败。随包发布的 web 组合让 `usage_stats` 沿用 `json` 默认值，因为 `storage-sqlite` 在激活时就会打开数据库，而该组合同时会打包纯浏览器 Worker 部署，其 `node:sqlite` 桩会拒绝该构造函数；把该域路由到 SQLite 属于后续 patch 层的选择。
+`refreshPollIntervalMs` 控制核对期间的浏览器轮询间隔（默认 1000 ms，整数范围 250～10000 ms）。它注入 `sessionPersistence` 与 `storageDomain`：没有 `sessionPersistence` 时 fiber 一直 pending，没有 `storageDomain` 则激活时响亮失败。随包发布的 web 组合让 `usage_stats` 沿用 `json` 默认值，因为 `storage-sqlite` 在激活时就会打开数据库，而该组合同时会打包纯浏览器 Worker 部署，其 `node:sqlite` 桩会拒绝该构造函数；把该域路由到 SQLite 属于后续 patch 层的选择。
 
 ### 各字段含义
 
@@ -78,6 +78,16 @@ dsh plugin --profile web add /absolute/path/to/dsh-usage-stats/packages/usage-st
 
 折叠读取持久化日志，而不是模型可见的接口面，因此后来被压缩对模型隐藏的 token 仍然计数，因为它们确实被消耗了。进程中的首次查询会对账持久化会话目录；后续查询只检查跨过持久化检查点的会话，因此重新打开「用量」页不会遍历全部已存会话。每个生命周期的文件 revision 仍会跳过日志字节未推进的会话。
 
+### 阅读图表
+
+每根柱子是一个桶：单日视图里是小时，窗口视图里是日期。柱子按输入未命中、缓存命中、输出堆叠；没有用量的桶仍会在基线轨道上保留刻度，因此空白小时读作“确认是 0”，而不是“数据缺失”。鼠标悬停或用键盘聚焦某根柱子，会显示该桶的精确数字。开启 `prefers-reduced-motion` 时入场级联与悬停动效会被关闭。
+
+### 缓存显示与新鲜度
+
+用量页读取 `GET /dsh-usage-stats/snapshot`，使用与严格读取接口 `GET /dsh-usage-stats/stats` 相同的 `days`、`date`、`models` 查询字段。快照返回 `value`、`freshness`、`revision`、`error` 和 `refreshPollIntervalMs`。页面立即显示上次完整保存的聚合结果，并在 `freshness: pending` 时标注正在更新。没有检查点时，首次回填完成之前 `value: null`；未经核对的零值不表示历史为空。核对完成、失败或页面关闭后停止轮询。`retry=1` 显式重试失败的后台扫描。
+
+核对共享一个任务，完整 totals 与游标原子保存成功后才一并发布。扫描或保存失败保留此前完整视图和进度；页面保留图表并提供重试。检查点 schema 仍为 version 1。缓存显示移除首屏对核对的等待，不减少完整后台工作量；旧世代 revision 仍可能触发昂贵的迁移校验。
+
 ### 失败与恢复
 
 查询不会因为某个会话日志损坏而失败：折叠会告警、跳过该会话，并且只在内存里记录其 revision，因此新进程会重试它。检查点丢失或过期只会在下次冷读时多回放一段日志尾部，绝不会丢数据，因为日志始终是权威。已从设备删除的会话保留其贡献。
@@ -90,7 +100,7 @@ dsh plugin --profile web add /absolute/path/to/dsh-usage-stats/packages/usage-st
 <details>
 <summary>实现内部细节 —— 点击展开</summary>
 
-`UsageStatsService` 维护一份内存聚合：按本地自然日索引的按天桶，每个桶带 24 个按小时的桶和一份按模型的映射，外加每个会话生命周期一个折叠游标和最近一次 revision。首次折叠遍历 `sessionPersistence.list()`；后续折叠只检查被 `session/flush` 标记为失效的会话。它跳过 revision 未变化的生命周期，为其余每个日志打开读句柄，跳过 fork 继承的前缀（`inheritedEventCount`）以免 fork 出的子会话重复计入其父会话，并折叠游标之后的每个事件。`foldEvent` 把 `assistant/message` 的用量加到天、小时和模型累加器上，并统计名为 `web_search` 的 `tool/call` 事件。各次折叠串行排在一个 promise 尾部之后，因此并发查询共享同一次扫描。某次折叠有变动之后，服务会把整个检查点作为一个全局值写回 `usage_stats` 存储域——累计总量加上逐会话进度，不可读的会话被排除，以便重启后重试。
+`UsageStatsService` 维护一份内存聚合：按本地自然日索引的按天桶，每个桶带 24 个按小时的桶和一份按模型的映射，外加每个会话生命周期一个折叠游标和最近一次 revision。首次折叠遍历 `sessionPersistence.list()`；后续折叠只检查被 `session/flush` 标记为失效的会话。它跳过 revision 未变化的生命周期，为其余每个日志打开读句柄，跳过 fork 继承的前缀（`inheritedEventCount`）以免 fork 出的子会话重复计入其父会话，并折叠游标之后的每个事件。`foldEvent` 把 `assistant/message` 的用量加到天、小时和模型累加器上，并统计名为 `web_search` 的 `tool/call` 事件。并发查询共享一个由生命周期持有的任务；严格读取还会核对等待期间到达的 flush。缓存读取只观察上次完整提交的状态。某次折叠有变动之后，服务会把整个检查点作为一个全局值写回 `usage_stats` 存储域——累计总量加上逐会话进度，不可读的会话被排除，以便重启后重试。
 
 </details>
 
