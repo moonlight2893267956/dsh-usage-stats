@@ -12,6 +12,8 @@ import type { UsageStatsRequest } from './types.ts'
  * cannot collide with the harness' own routes.
  */
 export const USAGE_STATS_PATH = '/dsh-usage-stats/stats'
+/** Non-blocking read of the last committed aggregate; retry=1 explicitly retries a failed reconciliation. */
+export const USAGE_SNAPSHOT_PATH = '/dsh-usage-stats/snapshot'
 
 /** The only day format the route accepts, matching the fold's local day keys. */
 const DAY = /^\d{4}-\d{2}-\d{2}$/

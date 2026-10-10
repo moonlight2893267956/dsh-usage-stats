@@ -74,6 +74,26 @@ export interface UsageStatsRequest {
   readonly models?: readonly string[] | null
 }
 
+/** Browser refresh timing supplied by the Host plugin configuration. */
+export interface UsageStatsConfig {
+  /** Polling interval while reconciliation is pending, between 250 and 10000 ms. */
+  readonly refreshPollIntervalMs: number
+}
+
+/** A committed aggregate and its process-local reconciliation status. */
+export interface UsageStatsSnapshot {
+  /** Last complete aggregate, or null before an uncached initial backfill completes. */
+  readonly value: UsageStatsValue | null
+  /** Pending values may be stale; error retains the last complete aggregate. */
+  readonly freshness: 'pending' | 'ready' | 'error'
+  /** Process-local publication sequence; it is not a durable session revision. */
+  readonly revision: number
+  /** Reconciliation failure, or null when no whole-query failure occurred. */
+  readonly error: string | null
+  /** Host-owned polling interval for this deployment. */
+  readonly refreshPollIntervalMs: number
+}
+
 /** The trailing per-day aggregate, oldest first. */
 export interface UsageStatsValue {
   /** The clamped window length actually returned. */

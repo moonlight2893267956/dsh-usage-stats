@@ -38,6 +38,7 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-usage: dictionaries')
 
   const controller = new UsageStatsStore(fetchUsageStats)
+  ctx.effect(() => () => controller.stop(), 'usage: cancel view reads')
   // Registration-time text (the nav label thunk) and the inject face share one
   // bound translate; copy freshness rides the locale revision. The section
   // snapshot rides the UI renderer's `hooks` binding (the renderer delivers it

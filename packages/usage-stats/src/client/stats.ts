@@ -5,8 +5,8 @@
  * @module @moonlight2893267956/dsh-usage-stats/client/stats
  */
 
-import { USAGE_STATS_PATH, usageStatsQuery } from '@moonlight2893267956/dsh-usage-stats/route'
-import type { UsageStatsRequest, UsageStatsValue } from '@moonlight2893267956/dsh-usage-stats/types'
+import { USAGE_SNAPSHOT_PATH, usageStatsQuery } from '../route.ts'
+import type { UsageStatsRequest, UsageStatsSnapshot } from '../types.ts'
 
 /**
  * Read one usage window from the Host.
@@ -18,13 +18,14 @@ import type { UsageStatsRequest, UsageStatsValue } from '@moonlight2893267956/ds
 export async function fetchUsageStats(
   request: UsageStatsRequest,
   signal?: AbortSignal,
-): Promise<UsageStatsValue> {
+  retry = false,
+): Promise<UsageStatsSnapshot> {
   const response = await fetch(
-    `${USAGE_STATS_PATH}?${usageStatsQuery(request)}`,
+    `${USAGE_SNAPSHOT_PATH}?${usageStatsQuery(request)}${retry ? '&retry=1' : ''}`,
     signal === undefined ? {} : { signal },
   )
   if (!response.ok) throw new Error(await refusalMessage(response))
-  return await response.json() as UsageStatsValue
+  return await response.json() as UsageStatsSnapshot
 }
 
 /**

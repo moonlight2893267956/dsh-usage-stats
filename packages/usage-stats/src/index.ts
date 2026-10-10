@@ -10,6 +10,7 @@
  */
 
 import { Service, type Context } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Session } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session/types'
@@ -21,8 +22,8 @@ import type {} from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import { usageStatsDomainSpec } from './spec.ts'
 import type { UsageStatsCheckpoint, UsageStatsSession } from './spec.ts'
-import { USAGE_STATS_PATH, parseUsageStatsQuery } from './route.ts'
-import type { UsageStatsDay, UsageStatsHour, UsageStatsModelTotals, UsageStatsRequest, UsageStatsValue } from './types.ts'
+import { USAGE_STATS_PATH, USAGE_SNAPSHOT_PATH, parseUsageStatsQuery } from './route.ts'
+import type { UsageStatsConfig, UsageStatsSnapshot, UsageStatsDay, UsageStatsHour, UsageStatsModelTotals, UsageStatsRequest, UsageStatsValue } from './types.ts'
 
 export type * from './types.ts'
 export { usageStatsDomainSpec } from './spec.ts'
@@ -156,44 +157,52 @@ function restoreDay(persisted: UsageStatsCheckpoint['days'][string]): DayTotals 
   }
 }
 
+/** Aggregate state committed together with its fold progress. */
+interface FoldState {
+  days: Map<string, DayTotals>
+  cursors: Map<string, number>
+  revisions: Map<string, SessionPersistenceRevision>
+  unreadable: Set<string>
+}
+
 /**
- * The `usageStats` Remote service. It keeps one in-memory aggregate fed by an
+ * The `usageStats` service. It keeps one in-memory aggregate fed by an
  * incremental scan of the durable logs: each query folds only the events
  * appended since the previous fold (a per-lifecycle seq cursor), so the first
  * query after a restart backfills and later ones are cheap. A per-lifecycle
  * file revision skips unaffected sessions without reading their log bytes.
  *
- * The aggregate is checkpointed into the `usage_stats` storage domain: after
- * a restart (or a repeat visit in a new process), the persisted totals and
- * per-session fold progress seed the in-memory accumulator, so a warm start
- * folds only the deltas instead of rescanning every durable log. The in-memory
- * maps stay authoritative within one process (the hot path); SQLite serves
- * restarts and repeated visits. The checkpoint is derived, never an authority:
- * a lost or stale record only costs a longer tail replay on the next cold read.
+ * The `usage_stats` checkpoint seeds the committed aggregate across restarts.
+ * Strict reads await reconciliation; cached reads return the complete saved
+ * aggregate while one lifecycle-owned task reconciles history. Reconciliation
+ * publishes totals and cursors only after the atomic checkpoint save succeeds.
+ * A lost checkpoint requires backfill; session logs remain authoritative.
  */
 export class UsageStatsService extends Service {
   static inject = ['sessionPersistence', 'storageDomain']
+  static Config = z.object({
+    refreshPollIntervalMs: z.number().step(1).min(250).max(10000).default(1000),
+  })
 
-  /** Per-day totals keyed by local day. */
-  private days = new Map<string, DayTotals>()
-  /** Fold progress per session lifecycle (`<id>:<createdAt>` -> next unread seq). */
-  private cursors = new Map<string, number>()
-  /** Last attempted log revision per session lifecycle (readable AND unreadable), so a fold skips files the fold already saw. */
-  private revisions = new Map<string, SessionPersistenceRevision>()
-  /** Lifecycle keys whose log could not be read this process; never persisted. */
-  private readonly unreadable = new Set<string>()
-  /** Durable session lifecycles whose next query must refresh their revision. */
+  /** Only complete checkpoints are visible to readers. */
+  private committed: FoldState = {
+    days: new Map(), cursors: new Map(), revisions: new Map(), unreadable: new Set(),
+  }
   private readonly dirtySessions = new Map<SessionId, number>()
-  /** The first fold in this process has reconciled the durable session catalog. */
   private catalogLoaded = false
-  /** Serialize folds so a live query never doubles a concurrent one. */
-  private foldTail: Promise<void> = Promise.resolve()
+  private hasValue = false
+  private publication = 0
+  private lastError: string | null = null
+  private closed = false
+  /** One lifecycle-owned reconciliation shared by all waiters. */
+  private task: { controller: AbortController; done: Promise<void> } | undefined
   private checkpoint?: DomainGlobal<UsageStatsCheckpoint>
 
   /**
-   * @param ctx - Host context carrying session persistence and the storage domain form.
+   * @param ctx - Host context carrying persistence and storage services.
+   * @param config - Validated browser refresh timing.
    */
-  constructor(ctx: Context) {
+  constructor(ctx: Context, private readonly config: UsageStatsConfig) {
     super(ctx, 'usageStats')
   }
 
@@ -204,13 +213,22 @@ export class UsageStatsService extends Service {
    */
   protected async [Service.init](): Promise<void> {
     const domain = await this.ctx.storageDomain.open(usageStatsDomainSpec)
-    this.ctx.effect(() => () => domain.close(), 'usageStats.domainClose')
+    this.ctx.effect(() => async () => {
+      this.closed = true
+      const task = this.task
+      task?.controller.abort()
+      if (task !== undefined) {
+        try { await task.done } catch (error) { /* The reconciliation reports its failure to active readers. */ }
+      }
+      await domain.close()
+    }, 'usageStats.domainClose')
     this.checkpoint = domain.global
     const persisted = this.checkpoint.get()
-    this.days = new Map(Object.entries(persisted.days).map(([key, day]) => [key, restoreDay(day)]))
+    this.committed.days = new Map(Object.entries(persisted.days).map(([key, day]) => [key, restoreDay(day)]))
+    this.hasValue = Object.keys(persisted.sessions).length > 0 || this.committed.days.size > 0
     for (const [key, session] of Object.entries(persisted.sessions)) {
-      this.cursors.set(key, session.cursor)
-      this.revisions.set(key, SessionPersistenceRevision(session.revision))
+      this.committed.cursors.set(key, session.cursor)
+      this.committed.revisions.set(key, SessionPersistenceRevision(session.revision))
     }
     this.ctx.effect(() => this.ctx.on('session/flush', (session: Session) => {
       this.dirtySessions.set(session.id, (this.dirtySessions.get(session.id) ?? 0) + 1)
@@ -218,11 +236,12 @@ export class UsageStatsService extends Service {
     // A headless profile composes no web server; the aggregate still folds and
     // seeds from the checkpoint there, it just serves no route.
     this.ctx.inject(['webServer'], (scoped) => {
-      scoped.effect(() => scoped.webServer.register({
-        kind: 'exact',
-        path: USAGE_STATS_PATH,
-        handler: async (req, res) => { await this.serve(req, res) },
-      }), `usageStats: GET ${USAGE_STATS_PATH}`)
+      for (const path of [USAGE_STATS_PATH, USAGE_SNAPSHOT_PATH]) {
+        scoped.effect(() => scoped.webServer.register({
+          kind: 'exact', path,
+          handler: async (req, res) => { await this.serve(req, res) },
+        }), `usageStats: GET ${path}`)
+      }
     })
   }
 
@@ -240,13 +259,16 @@ export class UsageStatsService extends Service {
       return
     }
     // Node always sets url on server requests; String keeps that fact local.
-    const parsed = parseUsageStatsQuery(new URL(String(req.url), 'http://localhost').search)
+    const url = new URL(String(req.url), 'http://localhost')
+    const parsed = parseUsageStatsQuery(url.search)
     if (!parsed.ok) {
       sendJson(res, 400, { message: parsed.message })
       return
     }
     try {
-      sendJson(res, 200, await this.stats(parsed.request))
+      sendJson(res, 200, url.pathname === USAGE_SNAPSHOT_PATH
+        ? this.cachedSnapshot(parsed.request, url.searchParams.get('retry') === '1')
+        : await this.stats(parsed.request))
     } catch (error) {
       sendJson(res, 500, { message: error instanceof Error ? error.message : String(error) })
     }
@@ -259,7 +281,34 @@ export class UsageStatsService extends Service {
    * @returns the requested day/window, oldest first.
    */
   async stats(request: UsageStatsRequest): Promise<UsageStatsValue> {
-    await this.fold()
+    do {
+      await this.reconcile()
+    } while (this.dirtySessions.size > 0)
+    return this.window(request)
+  }
+
+  /**
+   * Return the last committed aggregate without waiting for historical reconciliation.
+   * @param request - Date/window and model selection.
+   * @param retry - Explicitly retry a previous whole-query failure.
+   * @returns committed data, freshness, and Host-owned polling timing.
+   */
+  cachedSnapshot(request: UsageStatsRequest, retry = false): UsageStatsSnapshot {
+    if (this.closed) throw new Error('usage-stats is closed')
+    if ((retry || this.lastError === null) && this.needsReconciliation()) {
+      void this.reconcile().catch((_error: unknown) => { /* The task retains the failure for snapshot readers. */ })
+    }
+    return {
+      value: this.hasValue ? this.window(request) : null,
+      freshness: this.lastError !== null ? 'error' : this.needsReconciliation() ? 'pending' : 'ready',
+      revision: this.publication,
+      error: this.lastError,
+      refreshPollIntervalMs: this.config.refreshPollIntervalMs,
+    }
+  }
+
+  /** Build a requested view using only the committed aggregate. */
+  private window(request: UsageStatsRequest): UsageStatsValue {
     if (request.date !== undefined) {
       // A single calendar day is always a one-bucket window with its full
       // per-hour breakdown. A key absent from the fold reads as a zero bucket
@@ -276,11 +325,29 @@ export class UsageStatsService extends Service {
     return this.snapshot(days, request.models)
   }
 
-  /** Queue one fold behind the previous so concurrent queries share a single scan. */
-  private fold(): Promise<void> {
-    const run = this.foldTail.then(() => this.foldAll())
-    this.foldTail = run.then(() => undefined, () => undefined)
-    return run
+  private needsReconciliation(): boolean {
+    return !this.catalogLoaded || this.dirtySessions.size > 0 || this.task !== undefined
+  }
+
+  /** Share one complete reconciliation; individual waiters do not own its cancellation. */
+  private reconcile(): Promise<void> {
+    if (this.closed) return Promise.reject(new Error('usage-stats is closed'))
+    if (this.task !== undefined) return this.task.done
+    if (!this.needsReconciliation() && this.lastError === null) return Promise.resolve()
+    const controller = new AbortController()
+    this.lastError = null
+    const done = Promise.resolve().then(async () => {
+      try {
+        await this.foldAll(controller.signal)
+      } catch (error: unknown) {
+        if (!this.closed) this.lastError = error instanceof Error ? error.message : String(error)
+        throw error
+      } finally {
+        this.task = undefined
+      }
+    })
+    this.task = { controller, done }
+    return done
   }
 
   /**
@@ -295,54 +362,67 @@ export class UsageStatsService extends Service {
    * records its revision only in memory (never in the checkpoint), so a
    * corrupt session is re-attempted — and re-warned — on the next restart.
    */
-  private async foldAll(): Promise<void> {
+  private async foldAll(signal: AbortSignal): Promise<void> {
+    signal.throwIfAborted()
     let changed = false
-    const dirty = this.catalogLoaded ? new Map(this.dirtySessions) : undefined
-    const snapshots = dirty === undefined
-      ? await this.ctx.sessionPersistence.list()
-      : await this.changedSnapshots(dirty)
+    const dirty = new Map(this.dirtySessions)
+    const snapshots = !this.catalogLoaded
+      ? await this.ctx.sessionPersistence.list({ signal })
+      : await this.changedSnapshots(dirty, signal)
+    const state: FoldState = {
+      days: new Map([...this.committed.days].map(([key, day]) => [key, restoreDay(structuredClone(persistDay(day)))])),
+      cursors: new Map(this.committed.cursors),
+      revisions: new Map(this.committed.revisions),
+      unreadable: new Set(this.committed.unreadable),
+    }
     for (const { header, revision } of snapshots) {
+      signal.throwIfAborted()
       const key = `${header.id}:${header.createdAt}`
       // The revision identity covers the whole log, so an unchanged revision
       // means the cursor is already at the durable tail — no bytes to fold.
-      if (this.revisions.get(key) === revision) continue
-      const fromSeq = this.cursors.get(key) ?? 0
+      if (state.revisions.get(key) === revision) continue
+      const fromSeq = state.cursors.get(key) ?? 0
       let events: readonly SessionEvent[]
       let foldFrom = fromSeq
       try {
-        const reader = await this.ctx.sessionPersistence.open(header.id, 'read')
+        const reader = await this.ctx.sessionPersistence.open(header.id, 'read', { signal })
         try {
           // Fork-inherited events replay the parent log inside this session; skip
           // them so a forked child never double-counts the tokens its parent
           // already folded. Never rewind below the live fold cursor.
           foldFrom = Math.max(fromSeq, reader.inheritedEventCount)
-          events = (await reader.read(foldFrom)).events
+          events = (await reader.read(foldFrom, Number.MAX_SAFE_INTEGER, { signal })).events
         } finally {
           await reader.close()
         }
       } catch (error: unknown) {
+        signal.throwIfAborted()
         this.ctx.logger.warn(`usage-stats: skipped session "${header.id}" because its log could not be read: ${String(error)}`)
-        this.revisions.set(key, revision)
-        this.unreadable.add(key)
+        state.revisions.set(key, revision)
+        state.unreadable.add(key)
         continue
       }
       let next = foldFrom
       for (const event of events) {
-        this.foldEvent(event)
+        signal.throwIfAborted()
+        this.foldEvent(state, event)
         next += 1
       }
-      this.cursors.set(key, next)
-      this.revisions.set(key, revision)
-      this.unreadable.delete(key)
+      state.cursors.set(key, next)
+      state.revisions.set(key, revision)
+      state.unreadable.delete(key)
       changed = true
     }
-    if (dirty !== undefined) {
-      for (const [id, generation] of dirty) {
-        if (this.dirtySessions.get(id) === generation) this.dirtySessions.delete(id)
-      }
-    }
+    signal.throwIfAborted()
+    if (changed) await this.persistCheckpoint(state)
+    signal.throwIfAborted()
+    this.committed = state
+    this.hasValue = true
+    this.publication += 1
     this.catalogLoaded = true
-    if (changed) await this.persistCheckpoint()
+    for (const [id, generation] of dirty) {
+      if (this.dirtySessions.get(id) === generation) this.dirtySessions.delete(id)
+    }
   }
 
   /**
@@ -352,9 +432,14 @@ export class UsageStatsService extends Service {
    * @param dirty - the invalidation generation sampled at fold start.
    * @returns current snapshots for still-stored dirty sessions.
    */
-  private async changedSnapshots(dirty: ReadonlyMap<SessionId, number>) {
-    const snapshots = await Promise.all([...dirty.keys()].map(id => this.ctx.sessionPersistence.stat(id)))
-    return snapshots.filter((snapshot): snapshot is NonNullable<typeof snapshot> => snapshot !== undefined)
+  private async changedSnapshots(dirty: ReadonlyMap<SessionId, number>, signal: AbortSignal) {
+    const results = await Promise.allSettled([...dirty.keys()].map(id => this.ctx.sessionPersistence.stat(id, { signal })))
+    const snapshots = []
+    for (const result of results) {
+      if (result.status === 'rejected') throw result.reason
+      if (result.value !== undefined) snapshots.push(result.value)
+    }
+    return snapshots
   }
 
   /**
@@ -362,21 +447,21 @@ export class UsageStatsService extends Service {
    * that fold succeeded are recorded — an unreadable log never advances the
    * persisted cursor, so a corrupt session is re-attempted on the next restart.
    */
-  private async persistCheckpoint(): Promise<void> {
+  private async persistCheckpoint(state: FoldState): Promise<void> {
     const sessions: Record<string, UsageStatsSession> = {}
-    for (const [key, revision] of this.revisions) {
-      if (this.unreadable.has(key)) continue
-      sessions[key] = { cursor: this.cursors.get(key) ?? 0, revision: String(revision) }
+    for (const [key, revision] of state.revisions) {
+      if (state.unreadable.has(key)) continue
+      sessions[key] = { cursor: state.cursors.get(key) ?? 0, revision: String(revision) }
     }
     const checkpoint: UsageStatsCheckpoint = {
       sessions,
-      days: Object.fromEntries([...this.days].map(([key, day]) => [key, persistDay(day)])),
+      days: Object.fromEntries([...state.days].map(([key, day]) => [key, persistDay(day)])),
     }
     await this.checkpoint?.set(checkpoint)
   }
 
   /** Add one event's contribution to its day bucket. */
-  private foldEvent(event: SessionEvent): void {
+  private foldEvent(state: FoldState, event: SessionEvent): void {
     // Each day bucket always materializes all 24 hour buckets, so this index is
     // in range; a `?? initializer` satisfies the indexed-access type without a
     // non-null assertion.
@@ -384,7 +469,7 @@ export class UsageStatsService extends Service {
     if (event.type === 'assistant/message') {
       const usage = event.data.usage
       if (usage === undefined) return
-      const day = this.day(event.time)
+      const day = this.day(state, event.time)
       const hour = day.hours[hourOfDay] ?? (day.hours[hourOfDay] = emptyHour())
       // input = full prompt input (uncached + cache-read hits); cacheWrite is
       // excluded so `input + cacheRead` never double-counts (input already
@@ -413,7 +498,7 @@ export class UsageStatsService extends Service {
       hourTotals.requests += 1
       hour.models.set(model, hourTotals)
     } else if (event.type === 'tool/call' && event.data.name === 'web_search') {
-      const day = this.day(event.time)
+      const day = this.day(state, event.time)
       day.searches += 1
       const hour = day.hours[hourOfDay] ?? (day.hours[hourOfDay] = emptyHour())
       hour.searches += 1
@@ -421,12 +506,12 @@ export class UsageStatsService extends Service {
   }
 
   /** Return the mutable bucket for one event time, creating it on first use. */
-  private day(time: number): DayTotals {
+  private day(state: FoldState, time: number): DayTotals {
     const key = dayKeyOf(time)
-    let day = this.days.get(key)
+    let day = state.days.get(key)
     if (day === undefined) {
       day = emptyDay()
-      this.days.set(key, day)
+      state.days.set(key, day)
     }
     return day
   }
@@ -443,7 +528,7 @@ export class UsageStatsService extends Service {
     seenModels: Set<string>,
   ): UsageStatsDay {
     const modelFilter = models !== undefined && models !== null && models.length > 0 ? models : null
-    const day = this.days.get(key) ?? emptyDay()
+    const day = this.committed.days.get(key) ?? emptyDay()
     const modelsOut: Record<string, UsageStatsModelTotals> = {}
     let input = 0
     let cacheRead = 0
