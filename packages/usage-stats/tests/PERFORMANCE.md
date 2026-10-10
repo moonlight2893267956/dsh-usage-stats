@@ -34,3 +34,18 @@ Historical revisions can include a corpus-wide migration fingerprint. Unrelated 
 ## Chart legibility and interaction
 
 `ui-review.mjs` renders the built client bundle in real Chrome over three synthetic shapes — a sparse current day, a busy current day, and a 30-day window — and captures hover and keyboard-focus states. It found that empty buckets drew a 0.5px mark that read as blank canvas across most of the plot, and that `.barHover` had no stylesheet rule at all, so the hover highlight never applied. The chart now marks every bucket on the baseline rail at column width, sizes columns from their slot instead of a fixed 18px cap, draws the zero gridline, highlights hover and focus, and drops the cascade and hover motion under `prefers-reduced-motion`. Column height transitions on in-place data updates, while a window change still remounts and replays the cascade. Screenshots stay under ignored `.playwright-mcp/`.
+
+## Corpus-wide revalidation
+
+Measured 2026-10-10 against this machine's corpus (272 logs, 359.9 MiB compressed, roughly 1.6 GiB of JSONL) with the real list and fold paths:
+
+| Case | Observed |
+|---|---|
+| Cold fold, no checkpoint, desktop runtime (Electron Node 24.18.1) | 19 s |
+| Cold fold, no checkpoint, source runtime (Node 24.20.0) | 28 s |
+| Fold against the checkpoint written by the previous boot | 21 s |
+| First snapshot response while either fold runs | 0.005 s, `value` non-null when a checkpoint exists |
+
+Two boots minutes apart reported different revisions for 136 of 168 sessions while the leading revision fields stayed identical and only the trailing hash moved. `session-persistence-jsonl` appends `historicalCorpusRevision()` to the revision of every session whose log predates the current format, and that hash covers the sorted set of generation paths, so creating one session or materializing one generation invalidates every pre-format session. Those sessions are re-opened for migration validation on the next fold even though their cursors return no new events, which is what the warm row isolates: a checkpoint removes byte replay, not the per-session revalidation pass, and a seeded checkpoint still spends that pass before reporting `ready`.
+
+The pass scales with the number of pre-format sessions rather than corpus bytes or new activity, so it is bounded by the history that predates the current log format. Cached display is what keeps it off the page: the committed aggregate renders immediately and `freshness: pending` marks the wait.
