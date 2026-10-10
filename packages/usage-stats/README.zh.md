@@ -62,6 +62,8 @@ dsh plugin --profile web add /absolute/path/to/dsh-usage-stats/packages/usage-st
 
 `refreshPollIntervalMs` 控制核对期间的浏览器轮询间隔（默认 1000 ms，整数范围 250～10000 ms）。它注入 `sessionPersistence` 与 `storageDomain`：没有 `sessionPersistence` 时 fiber 一直 pending，没有 `storageDomain` 则激活时响亮失败。随包发布的 web 组合让 `usage_stats` 沿用 `json` 默认值，因为 `storage-sqlite` 在激活时就会打开数据库，而该组合同时会打包纯浏览器 Worker 部署，其 `node:sqlite` 桩会拒绝该构造函数；把该域路由到 SQLite 属于后续 patch 层的选择。
 
+`storage-sqlite` 并非每个运行时都自带：桌面客户端随包提供 `dsh-storage`、`dsh-storage-json`、`dsh-storage-domain`，但没有这个后端，因此那里的 profile 需要自己安装该包，并按运行时版本精确 pin——该后端 peer 要求 `@deepseek-ai/dsh-storage` 正好是那个版本。缺包或版本不匹配会在激活期失败：后端无法 import，所有注入 `storageDomain` 的插件（包括本插件）都会停在 pending。
+
 ### 各字段含义
 
 | 字段 | 含义 |

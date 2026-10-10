@@ -62,6 +62,8 @@ A deployment that wants the SQLite medium for the checkpoint adds both rows belo
 
 `refreshPollIntervalMs` controls browser polling during reconciliation (default 1000 ms, integer range 250–10000 ms). It injects `sessionPersistence` and `storageDomain`: without `sessionPersistence` the fiber stays pending, and without `storageDomain` activation fails loud. The shipped Web composition leaves `usage_stats` on the `json` default, because `storage-sqlite` opens its database on activation and that composition also packs the browser-only Worker deployment, whose `node:sqlite` stub refuses the constructor; routing the domain to SQLite is a later patch layer's choice.
 
+`storage-sqlite` is not part of every runtime: the bundled desktop application ships `dsh-storage`, `dsh-storage-json`, and `dsh-storage-domain`, but not this backend, so a profile there installs the package itself and pins it to the runtime's version, because the backend peers on `@deepseek-ai/dsh-storage` at exactly that version. A missing or mismatched install fails at activation: the backend does not import, and every plugin that injects `storageDomain` — this one included — stays pending.
+
 ### What the figures mean
 
 | Field | Meaning |
