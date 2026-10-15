@@ -91,6 +91,10 @@ The Usage page reads `GET /dsh-usage-stats/snapshot` with the same `days`, `date
 
 Reconciliation shares one task and publishes the full totals and cursors only after their atomic save succeeds. A failed scan or save retains the previous committed view and its progress; the page keeps that chart visible with Retry. The checkpoint stays at schema version 1. Cached display removes reconciliation from first paint, not from the total background workload; old-generation revisions may still require expensive migration validation.
 
+### The settings nav glyph
+
+The settings shell draws each nav row's icon from its own list of section ids and falls back to the generic settings gear for every other one, and a `settings.section` registration has no icon field to pass — so the plugin claims its own row once the dialog is mounted and swaps the gear for a bar-chart mark matching the page's chart. Only the row whose visible text equals this plugin's current section label is marked, so no other section loses its icon; a locale switch re-claims it. Uninstalling the plugin or unloading its fiber removes both the mark and the stylesheet it injects.
+
 ### Failure and recovery
 
 A query never fails because one session log is corrupt: the fold warns, skips that session, and records its revision in memory only, so a fresh process retries it. A lost or stale checkpoint costs a longer tail replay on the next cold read and never loses data, because the logs remain the authority. A session deleted from the device keeps its contribution.

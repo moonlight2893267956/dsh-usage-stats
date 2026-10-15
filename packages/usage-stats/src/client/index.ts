@@ -17,6 +17,7 @@ import { UsageStatsStore } from './store.ts'
 import { fetchUsageStats } from './stats.ts'
 import { UsageSection } from './UsageSection.tsx'
 import type { UsageSectionInjected } from './UsageSection.tsx'
+import { installSettingsNavIcon } from './nav-icon.ts'
 import { en, zh } from './locales.ts'
 
 export type { UsageSectionInjected, UsageSectionProps } from './UsageSection.tsx'
@@ -49,6 +50,13 @@ export function apply(ctx: ClientContext): void {
     hooks: { snapshot: controller.store },
     t,
   })
+
+  // The nav row's glyph. The shell picks nav icons from its own section ids and
+  // falls back to the gear, and a settings.section registration has no icon to
+  // pass — so the plugin claims its own row and swaps the gear for a bar-chart
+  // mark. Same label thunk as the registration below, so a locale switch
+  // re-claims the row.
+  installSettingsNavIcon(ctx, () => t('nav'))
 
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',

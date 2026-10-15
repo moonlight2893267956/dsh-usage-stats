@@ -4,6 +4,8 @@ Status: implemented
 
 [English](2026-08-20-usage-settings-nav-chart-glyph.md) | 中文
 
+> 部分被取代：此处所述的 harness 侧 `navIcon` 映射从未进入已发布的外壳，插件现改为自行认领导航行。见[用量设置导航字形认领](2026-10-15-usage-nav-glyph-claim.zh.md)。下文论证——为何齿轮不合适、为何柱状图标记才是正确选择——依然成立。
+
 ## 问题
 
 用量设置分区（`id: 'usage'`，标签 `用量`/`Usage`）渲染一张按天聚合的 token 用量堆叠柱状图，但其在设置弹窗导航行中的图标是通用的设置齿轮。`ui-settings-general` 的 `SettingsRoot` 中 `navIcon` 映射仅为 `models`、`agent-presets`、`plugins` 命名了字形；其余所有分区 id——包括 `usage`——都落入 `IconSettingsOutline16`。用量是弹窗中视觉特征最强的分区，却使用了特征最弱的导航图标。

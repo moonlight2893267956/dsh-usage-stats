@@ -4,6 +4,12 @@ Status: implemented
 
 English | [中文](2026-08-20-usage-settings-nav-chart-glyph.zh.md)
 
+> Partly superseded: the harness-side `navIcon` mapping described here never
+> reached a shipped shell, and the plugin now claims its own nav row instead.
+> See [Usage Settings Nav Glyph Claim](2026-10-15-usage-nav-glyph-claim.md).
+> The reasoning below — why the gear was wrong, and why a bar-chart mark is the
+> right one — still stands.
+
 ## Problem
 
 The Usage settings section (`id: 'usage'`, label `用量`/`Usage`) renders a per-day token-usage stacked bar chart, but its settings-modal nav row carried the generic settings gear. The `navIcon` map in `ui-settings-general`'s `SettingsRoot` named glyphs only for `models`, `agent-presets`, and `plugins`; every other section id — including `usage` — fell through to `IconSettingsOutline16`. The chart content was the most visually specific section in the modal yet had the least specific nav affordance.
