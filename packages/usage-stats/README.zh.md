@@ -16,11 +16,12 @@ kind: "package-reference"
 装进 profile；插件属于 profile，而不属于某个 dsh 检出目录。
 
 ```sh
+dsh plugin --profile web add https://github.com/moonlight2893267956/dsh-usage-stats/releases/download/v0.1.1/moonlight2893267956-dsh-usage-stats-0.1.1.tgz
 dsh plugin --profile web add github:moonlight2893267956/dsh-usage-stats#path:packages/usage-stats
 dsh plugin --profile web add /absolute/path/to/dsh-usage-stats/packages/usage-stats
 ```
 
-末尾的 `#path:` 用来选中本仓库内的那个包 —— 仓库根是 workspace，不是插件本身。从 git 安装会通过 `prepare` 脚本自行构建，而 pnpm 会拦截该脚本直到你放行：先跑一次命令，把它打印的完整键填进 profile 的 `pnpm-workspace.yaml` 的 `allowBuilds`，再跑一次。之后重启 dsh，「用量」页出现在设置里。
+release tarball 是预构建产物，一条命令即可装好。从 git 安装则会通过 `prepare` 脚本自行构建，而 pnpm 会拦截该脚本直到你放行：先跑一次该命令，把它打印的完整键填进 profile 的 `pnpm-workspace.yaml` 的 `allowBuilds`，再跑一次；它末尾的 `#path:` 用来选中本仓库内的那个包，因为仓库根是 workspace 而不是插件本身。之后重启 dsh，「用量」页出现在设置里。
 
 ## 目录
 

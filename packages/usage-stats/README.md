@@ -16,11 +16,12 @@ Use this package to report how many tokens this device has spent, aggregated by 
 Install into a profile; the plugin belongs to the profile rather than to a dsh checkout.
 
 ```sh
+dsh plugin --profile web add https://github.com/moonlight2893267956/dsh-usage-stats/releases/download/v0.1.1/moonlight2893267956-dsh-usage-stats-0.1.1.tgz
 dsh plugin --profile web add github:moonlight2893267956/dsh-usage-stats#path:packages/usage-stats
 dsh plugin --profile web add /absolute/path/to/dsh-usage-stats/packages/usage-stats
 ```
 
-The trailing `#path:` selects the package inside this repository — the repository root is a workspace, not the plugin. A git-hosted install builds the package through its `prepare` script, which pnpm blocks until you allow it: run the command once, copy the exact key it prints into `allowBuilds` in the profile's `pnpm-workspace.yaml`, then run it again. Restart dsh afterwards; the Usage page appears under Settings.
+The release tarball is prebuilt, so it installs in one step. The git spec builds the package through its `prepare` script, which pnpm blocks until you allow it: run that command once, copy the exact key it prints into `allowBuilds` in the profile's `pnpm-workspace.yaml`, then run it again; its trailing `#path:` selects the package inside this repository, because the repository root is a workspace rather than the plugin. Restart dsh afterwards; the Usage page appears under Settings.
 
 ## Table of Contents
 
