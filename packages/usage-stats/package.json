@@ -1,7 +1,7 @@
 {
   "name": "@moonlight2893267956/dsh-usage-stats",
   "description": "Cross-session per-day token-usage statistics for DeepSeek Harness: a Host service folds the durable session logs into daily totals and serves them over a Typert Remote; the bundled client half renders the Usage settings page.",
-  "version": "0.1.1",
+  "version": "0.1.2-local.1",
   "packageManager": "pnpm@11.7.0",
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
