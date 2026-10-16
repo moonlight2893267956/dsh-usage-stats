@@ -186,7 +186,7 @@ describe('UsageStatsService', () => {
     }
   })
 
-  it('folds cache-read hits into input and excludes cache-write', async () => {
+  it('folds both cache compartments into input', async () => {
     const ctx = await mount([
       {
         meta: header('a'),
@@ -194,9 +194,19 @@ describe('UsageStatsService', () => {
       },
     ])
     try {
-      const value = await ctx.usageStats.stats({ days: 7 })
-      // input = uncached (10) + cache-read hits (50); cache-write (6) is excluded.
-      expect(bucketFor(value, 0)).toMatchObject({ input: 60, cacheRead: 50, output: 1 })
+      const value = await ctx.usageStats.stats({ days: 1 })
+      const bucket = bucketFor(value, 0)
+      // TokenUsage counts are disjoint, so input = uncached (10) + cache-read
+      // (50) + cache-write (6); cacheRead stays separate for the hit share.
+      expect(bucket).toMatchObject({ input: 66, cacheRead: 50, output: 1 })
+      // The per-model and per-hour accumulators are separate code paths: a
+      // cache-write fix applied to only one of them leaves the filtered and
+      // hourly views disagreeing with the day total.
+      expect(bucket.models['test']).toMatchObject({ input: 66, cacheRead: 50, output: 1 })
+      const hours = bucket.hours
+      expect(hours).toBeDefined()
+      const hour = hours![new Date(dayTime(0)).getHours()]
+      expect(hour).toMatchObject({ input: 66, cacheRead: 50, output: 1 })
     } finally {
       await ctx.fiber.dispose()
     }

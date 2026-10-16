@@ -103,6 +103,17 @@ function emptyDay(): DayTotals {
   return { input: 0, cacheRead: 0, output: 0, requests: 0, searches: 0, models: new Map(), hours: Array.from({ length: 24 }, emptyHour) }
 }
 
+/**
+ * Full prompt input of one usage record: uncached input plus both cache
+ * compartments. `TokenUsage` counts are disjoint — `inputTokens` excludes the
+ * cached prefix — so summing the three reproduces the real prompt-side total
+ * without double-counting. Cache writes (`cacheWriteTokens`) are a billed part
+ * of that prompt and would otherwise be dropped here entirely.
+ */
+function promptInput(usage: { inputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number }): number {
+  return usage.inputTokens + (usage.cacheReadTokens ?? 0) + (usage.cacheWriteTokens ?? 0)
+}
+
 /** Local calendar-day key (`YYYY-MM-DD`) for one epoch-millisecond event time. */
 function dayKeyOf(time: number): string {
   const date = new Date(time)
@@ -471,28 +482,27 @@ export class UsageStatsService extends Service {
       if (usage === undefined) return
       const day = this.day(state, event.time)
       const hour = day.hours[hourOfDay] ?? (day.hours[hourOfDay] = emptyHour())
-      // input = full prompt input (uncached + cache-read hits); cacheWrite is
-      // excluded so `input + cacheRead` never double-counts (input already
-      // contains cacheRead). cacheRead is also kept separately for the
-      // hit-share display.
-      day.input += usage.inputTokens + (usage.cacheReadTokens ?? 0)
+      // One prompt total per record, fed to every accumulator below; `cacheRead`
+      // is also kept separately for the hit-share display.
+      const input = promptInput(usage)
+      day.input += input
       day.cacheRead += usage.cacheReadTokens ?? 0
       day.output += usage.outputTokens
       // One assistant message with usage is one model completion request.
       day.requests += 1
-      hour.input += usage.inputTokens + (usage.cacheReadTokens ?? 0)
+      hour.input += input
       hour.cacheRead += usage.cacheReadTokens ?? 0
       hour.output += usage.outputTokens
       hour.requests += 1
       const model = event.data.message.source.model
       const totals = day.models.get(model) ?? emptyModel()
-      totals.input += usage.inputTokens + (usage.cacheReadTokens ?? 0)
+      totals.input += input
       totals.cacheRead += usage.cacheReadTokens ?? 0
       totals.output += usage.outputTokens
       totals.requests += 1
       day.models.set(model, totals)
       const hourTotals = hour.models.get(model) ?? emptyModel()
-      hourTotals.input += usage.inputTokens + (usage.cacheReadTokens ?? 0)
+      hourTotals.input += input
       hourTotals.cacheRead += usage.cacheReadTokens ?? 0
       hourTotals.output += usage.outputTokens
       hourTotals.requests += 1

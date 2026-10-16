@@ -82,6 +82,30 @@ describe('UsageSection', () => {
     expect(screen.getByRole('button', { name: '今天' }).getAttribute('aria-pressed')).toBe('true')
   })
 
+  it('reports web-search counts on the requests card', async () => {
+    const value: UsageStatsValue = {
+      days: 30,
+      buckets: [day('2026-08-17', 1200, 0, 300, 2, 5), day('2026-08-18', 800, 400, 100, 3, 7)],
+      models: [],
+    }
+    render(<UsageSection {...injected(fetchWith(value))} />)
+    await waitFor(() => { expect(screen.getByText('用量')).toBeTruthy() })
+    // Folded from tool/call events and carried over the wire, the count has to
+    // reach the page: 2 + 3 across the window.
+    expect(screen.getByText('5 次网络搜索')).toBeTruthy()
+  })
+
+  it('still states a zero search count rather than dropping the line', async () => {
+    const value: UsageStatsValue = {
+      days: 30,
+      buckets: [day('2026-08-18', 800, 400, 100, 0, 7)],
+      models: [],
+    }
+    render(<UsageSection {...injected(fetchWith(value))} />)
+    await waitFor(() => { expect(screen.getByText('用量')).toBeTruthy() })
+    expect(screen.getByText('0 次网络搜索')).toBeTruthy()
+  })
+
   it('reloads with the new window when a range button is clicked', async () => {
     const requests: UsageStatsRequest[] = []
     const fetchStats: UsageStatsFetch = (request) => {

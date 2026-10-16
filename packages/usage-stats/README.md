@@ -69,11 +69,13 @@ A deployment that wants the SQLite medium for the checkpoint adds both rows belo
 
 | Field | Meaning |
 |---|---|
-| `input` | Full prompt input: uncached input plus cache-read hits, so it already contains `cacheRead` |
+| `input` | Full prompt input: uncached input plus both cache compartments (cache read and cache write), so it already contains `cacheRead` |
 | `cacheRead` | Prompt-cache hits — the reused prefix |
 | `output` | Output (completion) tokens |
-| `requests` | Assistant messages carrying usage, one per model completion request |
+| `requests` | Assistant messages carrying usage, one per model completion request; the card's subline reports the search count |
 | `searches` | `web_search` tool calls made that day |
+
+The four token counts are disjoint, so `input` is the complete prompt side of a request and `input + output` is its whole billed total.
 
 A single-day request also carries 24 hourly buckets; a trailing window carries per-day buckets only. The window length is clamped to `[1, 370]`, and an unusable value defaults to 30.
 
@@ -142,7 +144,8 @@ None; the plugin never assembles or sends provider requests.
 
 These limits define what the figures cover and what the checkpoint can recover. They are current package constraints.
 
-- **One global checkpoint record** — the checkpoint is a single global value holding accumulated totals and per-session fold progress, so one mutated fold rewrites all of it. A schema change raises the domain `version`: the `json` backend backs the stale record up, while a deployment routing the domain to SQLite gets a hard `version-mismatch` at open. The totals are fully re-derivable from the logs, so recovery is clearing the unit rather than migrating it.
+- **One global checkpoint record** — the checkpoint is a single global value holding accumulated totals and per-session fold progress, so one mutated fold rewrites all of it. A schema change raises the domain `version`, and both backends then reject the stale unit with `version-mismatch` at open — `json` included, which keeps the file rather than backing it up — leaving every plugin that injects `storageDomain` pending until the unit is cleared. The totals are fully re-derivable from the logs, so recovery is clearing the unit rather than migrating it.
+- **Fold arithmetic changes apply only to new events** — the fold is incremental by per-session cursor, so an already-folded event is never re-read. Changing how a record is accumulated therefore leaves every day already in the checkpoint on the previous arithmetic; correcting history means clearing the unit and re-folding the whole corpus, which also drops the contribution of sessions deleted from the device.
 - **Unreadable-log retry across restarts** — only readable sessions enter the checkpoint, so each fresh process re-attempts and re-warns on a corrupt log; within one process it is warned once and skipped.
 - **No per-purpose split** — buckets split by token kind and by model, but not by call purpose (conversation, compaction, session title), because the durable `assistant/message` record does not carry the request's `purpose`; splitting further requires logging that field first.
 

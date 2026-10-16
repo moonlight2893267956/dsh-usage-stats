@@ -7,7 +7,7 @@
 
 /** One model's token totals within a single day. */
 export interface UsageStatsModelTotals {
-  /** Full prompt input: uncached input plus cache-read hits (contains `cacheRead`). */
+  /** Full prompt input: uncached input plus both cache compartments (cache read and cache write). */
   readonly input: number
   /** Cache-read tokens (prompt-cache hits — the reused prefix). */
   readonly cacheRead: number
@@ -21,7 +21,7 @@ export interface UsageStatsModelTotals {
 export interface UsageStatsHour {
   /** Hour of the day, 0–23. */
   readonly hour: number
-  /** Full prompt input: uncached input plus cache-read hits (contains `cacheRead`). */
+  /** Full prompt input: uncached input plus both cache compartments (cache read and cache write). */
   readonly input: number
   /** Cache-read tokens (prompt-cache hits — the reused prefix). */
   readonly cacheRead: number
@@ -37,7 +37,7 @@ export interface UsageStatsHour {
 export interface UsageStatsDay {
   /** Local calendar day, `YYYY-MM-DD`. */
   readonly date: string
-  /** Full prompt input: uncached input plus cache-read hits (contains `cacheRead`). */
+  /** Full prompt input: uncached input plus both cache compartments (cache read and cache write). */
   readonly input: number
   /** Cache-read tokens (prompt-cache hits — the reused prefix). */
   readonly cacheRead: number

@@ -321,6 +321,10 @@ function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
             <span className={styles['cardLabel']}>{t('requests')}</span>
           </div>
           <span className={styles['cardValue']}>{formatFull(requests)}</span>
+          {/* Search counts have no card of their own: they belong to the same
+           * request accounting, and a fifth card would leave the two-column
+           * grid with an odd trailing cell. */}
+          <span className={styles['cardSub']}>{t('card.requests.sub').replace('{searches}', formatFull(searches))}</span>
         </div>
       </div>
 
