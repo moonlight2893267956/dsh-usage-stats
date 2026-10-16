@@ -21,7 +21,7 @@ An additional read-only desktop-runtime probe restored the existing checkpoint t
 
 ## Functional and negative-control evidence
 
-The package suite passes 60 tests. New cases include blocked reconciliation with cached totals, concurrent scan sharing, null-before-backfill, explicit retry, atomic checkpoint failure, flushes arriving while a strict waiter joins, abort/settlement before disposal, HTTP refusal/route teardown, retained chart during update, auto-refresh, superseded request cancellation, and polling teardown. The existing real Loader/persistence test and fork-counting tests remain passing.
+The package suite passes 81 tests. New cases include blocked reconciliation with cached totals, concurrent scan sharing, null-before-backfill, explicit retry, atomic checkpoint failure, flushes arriving while a strict waiter joins, abort/settlement before disposal, HTTP refusal/route teardown, retained chart during update, auto-refresh, superseded request cancellation, and polling teardown. The existing real Loader/persistence test and fork-counting tests remain passing. Later cases cover the fold arithmetic at every accumulator (day, hour, and both per-model views), the search count reaching the page, and the nav-glyph claim.
 
 Negative control: temporarily withholding a cached value while reconciliation was pending made `returns saved totals before reconciliation completes and shares the scan` fail (`expected undefined to be 10`). Restoring the nonblocking committed value made all 9 snapshot host tests pass. No negative-control modification remains in the source or installed artifact.
 

@@ -83,6 +83,24 @@ describe('UsageStatsStore', () => {
     expect(requests).toEqual([{ days: 30, models: [] }, { days: 90, models: [] }])
   })
 
+  it('reports a window switch as loading rather than a measured zero', async () => {
+    let release: (value: UsageStatsValue) => void = () => {}
+    const { fetchStats } = fakeFetch(() => new Promise<UsageStatsValue>((resolve) => { release = resolve }))
+    const store = new UsageStatsStore(fetchStats)
+    void store.load()
+    release(window(1, [day('2026-10-16', 142800, 7600, 8)]))
+    await Promise.resolve()
+    expect(store.store.getSnapshot()).toMatchObject({ hasValue: true, status: 'ready' })
+    store.setDays(30)
+    // The previous window's buckets belong to the previous window, so they are
+    // dropped; the snapshot must read as loading, not as a zeroed window that
+    // the page would render as a measured empty result.
+    expect(store.store.getSnapshot()).toMatchObject({ hasValue: false, status: 'loading', buckets: [] })
+    release(window(30, [day('2026-10-16', 5000, 500, 1)]))
+    await Promise.resolve()
+    expect(store.store.getSnapshot()).toMatchObject({ hasValue: true, status: 'ready' })
+  })
+
   it('ignores a stale response that resolves after a newer load started', async () => {
     const resolvers: Array<() => void> = []
     const { fetchStats } = fakeFetch(request => new Promise<UsageStatsValue>((resolve) => {

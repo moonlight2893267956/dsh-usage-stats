@@ -53,6 +53,13 @@ function formatFull(value: number): string {
   return value.toLocaleString()
 }
 
+/**
+ * Placeholder shown in a metric card while the first response is outstanding.
+ * A bare dash rather than `0`, which the page already uses to mean a measured
+ * empty window.
+ */
+const cardPlaceholder = '—'
+
 /** `YYYY-MM-DD` rendered through the locale's `chart.dayLabel` template. */
 function dateLabel(template: string, key: string): string {
   const parts = key.split('-')
@@ -298,33 +305,45 @@ function Loaded({ injected }: { injected: UsageSectionFace }): ReactNode {
             <span className={styles['cardDot']} />
             <span className={styles['cardLabel']}>{t('cat.input')}</span>
           </div>
-          <span className={styles['cardValue']}>{formatFull(totals.input)}</span>
-          <span className={styles['cardSub']}>{t('card.input.sub').replace('{rate}', String(hitRate))}</span>
+          {/* Before the first response the totals are genuinely unknown, so the
+           * card must not read as a measured zero the way an empty window does. */}
+          {loading
+            ? <span className={styles['cardValue']}>{cardPlaceholder}</span>
+            : <span className={styles['cardValue']}>{formatFull(totals.input)}</span>}
+          {loading || <span className={styles['cardSub']}>{t('card.input.sub').replace('{rate}', String(hitRate))}</span>}
         </div>
         <div className={`${styles['card']} ${styles['catCacheRead']}`}>
           <div className={styles['cardHead']}>
             <span className={styles['cardDot']} />
             <span className={styles['cardLabel']}>{t('cat.cacheRead')}</span>
           </div>
-          <span className={styles['cardValue']}>{formatFull(totals.cacheRead)}</span>
+          {loading
+            ? <span className={styles['cardValue']}>{cardPlaceholder}</span>
+            : <span className={styles['cardValue']}>{formatFull(totals.cacheRead)}</span>}
         </div>
         <div className={`${styles['card']} ${styles['catOutput']}`}>
           <div className={styles['cardHead']}>
             <span className={styles['cardDot']} />
             <span className={styles['cardLabel']}>{t('cat.output')}</span>
           </div>
-          <span className={styles['cardValue']}>{formatFull(totals.output)}</span>
+          {loading
+            ? <span className={styles['cardValue']}>{cardPlaceholder}</span>
+            : <span className={styles['cardValue']}>{formatFull(totals.output)}</span>}
         </div>
         <div className={`${styles['card']} ${styles['catRequests']}`}>
           <div className={styles['cardHead']}>
             <span className={styles['cardDot']} />
             <span className={styles['cardLabel']}>{t('requests')}</span>
           </div>
-          <span className={styles['cardValue']}>{formatFull(requests)}</span>
-          {/* Search counts have no card of their own: they belong to the same
-           * request accounting, and a fifth card would leave the two-column
-           * grid with an odd trailing cell. */}
-          <span className={styles['cardSub']}>{t('card.requests.sub').replace('{searches}', formatFull(searches))}</span>
+          {loading
+            ? <span className={styles['cardValue']}>{cardPlaceholder}</span>
+            : <span className={styles['cardValue']}>{formatFull(requests)}</span>}
+          {loading || <span className={styles['cardSub']}>
+            {/* Search counts have no card of their own: they belong to the same
+             * request accounting, and a fifth card would leave the two-column
+             * grid with an odd trailing cell. */}
+            {t('card.requests.sub').replace('{searches}', formatFull(searches))}
+          </span>}
         </div>
       </div>
 

@@ -89,7 +89,7 @@ Each column is one bucket — an hour for a single day, a date for a window. A c
 
 ### Cached display and freshness
 
-The Usage page reads `GET /dsh-usage-stats/snapshot` with the same `days`, `date`, and `models` query fields as the strict `GET /dsh-usage-stats/stats` route. A snapshot returns `value`, `freshness`, `revision`, `error`, and `refreshPollIntervalMs`. It displays the last complete saved aggregate immediately while `freshness: pending` labels it as updating. No checkpoint means `value: null` until the initial backfill completes; an unreconciled zero is not an empty-history result. Polling stops after reconciliation or a failure and when the page closes. `retry=1` explicitly retries a failed background scan.
+The Usage page reads `GET /dsh-usage-stats/snapshot` with the same `days`, `date`, and `models` query fields as the strict `GET /dsh-usage-stats/stats` route. A snapshot returns `value`, `freshness`, `revision`, `error`, and `refreshPollIntervalMs`. It displays the last complete saved aggregate immediately while `freshness: pending` labels it as updating. No checkpoint means `value: null` until the initial backfill completes; an unreconciled zero is not an empty-history result. While a first response is outstanding the four metric cards show a dash rather than `0`, so a cold backfill never reads as a measured empty window; a window switch drops the previous window's buckets for the same reason. Polling stops after reconciliation or a failure and when the page closes. `retry=1` explicitly retries a failed background scan.
 
 Reconciliation shares one task and publishes the full totals and cursors only after their atomic save succeeds. A failed scan or save retains the previous committed view and its progress; the page keeps that chart visible with Retry. The checkpoint stays at schema version 1. Cached display removes reconciliation from first paint, not from the total background workload; old-generation revisions may still require expensive migration validation.
 
@@ -122,9 +122,11 @@ A query never fails because one session log is corrupt: the fold warns, skips th
 <a id="further-exploration"></a>
 ## Further Exploration
 
-- [dsh-session-persistence](../session-persistence/README.md) — the durable log store whose listings, revisions, and reads the fold consumes.
-- [dsh-storage-domain](../../storage/storage-domain/README.md) — the checkpoint domain facility and its backend routes.
-- [dsh-client-ui-usage](../../client/ui-usage/README.md) — the Usage settings page that renders these figures.
+- `dsh-session-persistence` — the durable log store whose listings, revisions, and reads the fold consumes.
+- `dsh-storage-domain` — the checkpoint domain facility and its backend routes.
+- `dsh-client-ui-usage` — the Usage settings page that renders these figures.
+
+Those three live in the DeepSeek Harness monorepo, not in this repository, so they are named rather than linked.
 
 -----
 
@@ -144,7 +146,9 @@ None; the plugin never assembles or sends provider requests.
 
 These limits define what the figures cover and what the checkpoint can recover. They are current package constraints.
 
-- **One global checkpoint record** — the checkpoint is a single global value holding accumulated totals and per-session fold progress, so one mutated fold rewrites all of it. A schema change raises the domain `version`, and both backends then reject the stale unit with `version-mismatch` at open — `json` included, which keeps the file rather than backing it up — leaving every plugin that injects `storageDomain` pending until the unit is cleared. The totals are fully re-derivable from the logs, so recovery is clearing the unit rather than migrating it.
+- **One global checkpoint record** — the checkpoint is a single global value holding accumulated totals and per-session fold progress, so one mutated fold rewrites all of it. The fold clones days on first write rather than up front, so a fold that changes nothing clones none; at the 370-day ceiling the previous eager clone cost about 29 ms per fold regardless of outcome, against about 0.1 ms for the map copy alone. A schema change raises the domain `version`, and both backends then reject the stale unit with `version-mismatch` at open — `json` included, which keeps the file rather than backing it up — leaving every plugin that injects `storageDomain` pending until the unit is cleared. The totals are fully re-derivable from the logs, so recovery is clearing the unit rather than migrating it.
+- **No pruning of days past the query window** — every day ever folded stays in the checkpoint, and the window clamp of `[1, 370]` days does not delete anything. Days older than the clamp are unreachable through a trailing window but reachable through the date picker, whose `prevMonth` has no lower bound, so pruning would turn a real past day into a reading of zero. At the measured 2.4 KiB per day the checkpoint reaches roughly 900 KiB at the ceiling.
+- **Fixed-size hour buckets** — each day always materializes 24 hourly buckets even though most are empty: on the real checkpoint 89% of hour slots held no usage. A sparse encoding would cut the hour payload by about 68%, but it changes the stored shape, so it needs a domain version bump and therefore a cleared unit.
 - **Fold arithmetic changes apply only to new events** — the fold is incremental by per-session cursor, so an already-folded event is never re-read. Changing how a record is accumulated therefore leaves every day already in the checkpoint on the previous arithmetic; correcting history means clearing the unit and re-folding the whole corpus, which also drops the contribution of sessions deleted from the device.
 - **Unreadable-log retry across restarts** — only readable sessions enter the checkpoint, so each fresh process re-attempts and re-warns on a corrupt log; within one process it is warned once and skipped.
 - **No per-purpose split** — buckets split by token kind and by model, but not by call purpose (conversation, compaction, session title), because the durable `assistant/message` record does not carry the request's `purpose`; splitting further requires logging that field first.

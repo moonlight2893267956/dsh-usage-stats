@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-10-16-usage-stats-fold-clone-and-load-state.md
+2026-10-16-usage-stats-fold-clone-and-load-state.md: d9672428a742bc5aaf4df8d23050d289be1e2a0b
+2026-10-16-usage-stats-fold-clone-and-load-state.zh.md: 06b19e722b120019ba0f76ba4704e044b862ad95

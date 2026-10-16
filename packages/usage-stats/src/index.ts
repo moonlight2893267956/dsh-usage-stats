@@ -381,7 +381,12 @@ export class UsageStatsService extends Service {
       ? await this.ctx.sessionPersistence.list({ signal })
       : await this.changedSnapshots(dirty, signal)
     const state: FoldState = {
-      days: new Map([...this.committed.days].map(([key, day]) => [key, restoreDay(structuredClone(persistDay(day)))])),
+      // Copy-on-write per day: the committed map keeps serving readers while
+      // this fold runs, and a fold that throws leaves the previous totals
+      // untouched. Days are cloned on first touch rather than up front, so a
+      // fold that changes nothing — the common case, since only sessions
+      // crossing a durability barrier are visited — clones no day at all.
+      days: new Map(this.committed.days),
       cursors: new Map(this.committed.cursors),
       revisions: new Map(this.committed.revisions),
       unreadable: new Set(this.committed.unreadable),
@@ -521,6 +526,12 @@ export class UsageStatsService extends Service {
     let day = state.days.get(key)
     if (day === undefined) {
       day = emptyDay()
+      state.days.set(key, day)
+    } else if (day === this.committed.days.get(key)) {
+      // First write to a day this fold has not touched yet: clone it so the
+      // committed aggregate readers still see is not mutated. Days absent from
+      // `committed` are already private to this fold and need no clone.
+      day = structuredClone(day)
       state.days.set(key, day)
     }
     return day

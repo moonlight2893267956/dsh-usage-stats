@@ -106,6 +106,21 @@ describe('UsageSection', () => {
     expect(screen.getByText('0 次网络搜索')).toBeTruthy()
   })
 
+  it('shows a placeholder rather than a measured zero before the first response', async () => {
+    let release: (value: UsageStatsValue) => void = () => {}
+    const fetchStats: UsageStatsFetch = () => new Promise<UsageStatsValue>(resolve => { release = resolve })
+    render(<UsageSection {...injected(fetchStats)} />)
+    await waitFor(() => { expect(screen.getByText('用量')).toBeTruthy() })
+    // No value yet: the four cards must not read "0", which the page uses for a
+    // measured empty window. A cold backfill can take many seconds.
+    expect(screen.queryByText('0')).toBeNull()
+    expect(screen.getAllByText('—').length).toBe(4)
+    expect(screen.getByText('加载中…')).toBeTruthy()
+    release({ days: 30, buckets: [day('2026-08-18', 800, 400, 100, 3, 7)], models: [] })
+    await waitFor(() => { expect(screen.getByText('800')).toBeTruthy() })
+    expect(screen.queryByText('—')).toBeNull()
+  })
+
   it('reloads with the new window when a range button is clicked', async () => {
     const requests: UsageStatsRequest[] = []
     const fetchStats: UsageStatsFetch = (request) => {
