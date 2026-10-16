@@ -6,7 +6,7 @@
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
   },
-  "icon": "./icon.svg",
+  "icon": "./icon.png",
   "publishConfig": {
     "access": "public"
   },
@@ -37,7 +37,7 @@
     },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg",
+    "./icon": "./icon.png",
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
@@ -48,7 +48,7 @@
     "lib/types/**/*.d.ts",
     "cordis.patch.yml",
     "locale/*.json",
-    "icon.svg"
+    "icon.png"
   ],
   "scripts": {
     "build:host": "tsc -b tsconfig.node.json",

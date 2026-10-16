@@ -31,6 +31,16 @@ Both the marker and the stylesheet belong to one `ctx.effect`, so they are remov
 
 **Draw the mark with an injected React component.** The nav rails' rows are rendered by the shell from its own ledger; a registrant has no render site inside them. Claiming the row is the only seat reachable from a plugin.
 
+## The manifest icon
+
+The plugin-list tile renders the manifest icon through an `<img>`, and an image document has no cascade to inherit from: `currentColor` inside an SVG resolves to black rather than to the surrounding UI colour. The icon's first version was an SVG drawn entirely in `currentColor`, so on the dark theme it painted black on a near-black surface and read as an empty tile. A sibling plugin (`dsh-rewind-plugin`) documents the same constraint and hardcodes its palette for it.
+
+The icon is now `icon.png`: a raster mark generated with `image_generate` (gpt-image-2) — a rounded tile in a blue vertical gradient holding three ascending white bars — then post-processed to remove the generated white background to transparency, trim to the mark, re-square with an even margin, and downscale to 256px. Raster settles the colour question by construction: it has no cascade to lose. The PNG is 41 KiB against the manifest's 256 KiB `MAX_ICON_BYTES` cap, and the manifest's `icon`/`exports`/`files` entries all name `icon.png`; `icon.svg` is gone.
+
+Removing that background has one trap worth recording, because the naive version looks right and is not. The generated artwork is white bars on a white page, so keying out *every* near-white pixel also deletes the bars: they become transparent holes, and on the dark theme the holes show the surface behind them, turning the bars dark. Only background *outside* the tile may be dropped, so the post-processing flood-fills the white region inward from the canvas border and leaves the enclosed white marks opaque. The first attempt shipped the naive version; a spec that only checked "an alpha channel exists" passed it.
+
+`tests/icon.spec.ts` decodes the PNG and checks pixels: under the cap, square, 8-bit with an alpha channel, transparent corners, opaque white bars *and* an opaque blue tile, and no transparent pixels across the tile's middle band. It also asserts no `icon.svg` sits beside it. Reintroducing the SVG fails one spec; committing the generator's raw ~700 KiB RGB output fails five; and the transparent-hole version fails the two pixel specs.
+
 ## Consequences
 
 - The Usage row carries a bar-chart mark distinct from every other section's, in both themes and in the active state, without touching the shell or the slot contract.
@@ -42,4 +52,6 @@ Both the marker and the stylesheet belong to one `ctx.effect`, so they are remov
 
 `tests/nav-icon.client.spec.ts` (jsdom, 11 specs) pins the quiet failures: claiming another section's row, claiming while the label is unresolved, a stale claim after a locale switch, claiming a row mounted after the dialog opens, leaving the marker or stylesheet behind after disposal, and the mask drifting from the drawn geometry. Each of the first four was confirmed by mutation: breaking the guard turns the corresponding spec red. The geometry spec also holds the bars to the baseline and to ascending order.
 
-`pnpm --filter @moonlight2893267956/dsh-usage-stats run build`, `tsc -b tsconfig.client.json`, and the package suite (72 specs) are green.
+`tests/icon.spec.ts` decodes the PNG and holds the icon to its size cap, format, and pixels, with no `icon.svg` beside it. All three known regressions were confirmed by mutation: reintroducing the SVG fails one spec, committing the generator's raw RGB output fails five, and the transparent-hole version fails two.
+
+`pnpm --filter @moonlight2893267956/dsh-usage-stats run build`, `tsc -b tsconfig.client.json`, and the package suite (79 specs) are green.

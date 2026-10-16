@@ -95,6 +95,10 @@ Reconciliation shares one task and publishes the full totals and cursors only af
 
 The settings shell draws each nav row's icon from its own list of section ids and falls back to the generic settings gear for every other one, and a `settings.section` registration has no icon field to pass — so the plugin claims its own row once the dialog is mounted and swaps the gear for a bar-chart mark matching the page's chart. Only the row whose visible text equals this plugin's current section label is marked, so no other section loses its icon; a locale switch re-claims it. Uninstalling the plugin or unloading its fiber removes both the mark and the stylesheet it injects.
 
+### The plugin icon
+
+`icon.png` is the mark the plugin manager shows in its list. It is a raster image rather than an SVG on purpose: the manager renders a manifest icon through an `<img>`, and an isolated image document gives `currentColor` no cascade to resolve against, so an SVG drawn that way renders black in both themes. The PNG carries its own colours, a transparent background, and sits well under the manifest's 256 KiB limit — about 41 KiB at 256px.
+
 ### Failure and recovery
 
 A query never fails because one session log is corrupt: the fold warns, skips that session, and records its revision in memory only, so a fresh process retries it. A lost or stale checkpoint costs a longer tail replay on the next cold read and never loses data, because the logs remain the authority. A session deleted from the device keeps its contribution.
