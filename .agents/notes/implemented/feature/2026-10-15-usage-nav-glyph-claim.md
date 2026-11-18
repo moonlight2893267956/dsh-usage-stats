@@ -1,8 +1,14 @@
 # Agent Note: Usage Settings Nav Glyph Claim
 
-Status: implemented
+Status: superseded
 
 English | [中文](2026-10-15-usage-nav-glyph-claim.zh.md)
+
+> Superseded by [Usage Settings Nav Glyph Through the Icon Slot](2026-11-19-usage-nav-icon-slot.md).
+> DSH 0.2.2 declares `settings.section.icon` and renders the shell's gear inside a
+> wrapper span, so the label-based row claim below stopped hiding it and the row
+> showed two marks. The plugin now registers the glyph on that slot. The reasoning
+> about why the gear was wrong, and about the manifest icon, still stands.
 
 ## Problem
 

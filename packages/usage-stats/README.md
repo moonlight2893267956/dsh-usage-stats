@@ -95,7 +95,7 @@ Reconciliation shares one task and publishes the full totals and cursors only af
 
 ### The settings nav glyph
 
-The settings shell draws each nav row's icon from its own list of section ids and falls back to the generic settings gear for every other one, and a `settings.section` registration has no icon field to pass — so the plugin claims its own row once the dialog is mounted and swaps the gear for a bar-chart mark matching the page's chart. Only the row whose visible text equals this plugin's current section label is marked, so no other section loses its icon; a locale switch re-claims it. Uninstalling the plugin or unloading its fiber removes both the mark and the stylesheet it injects.
+The settings shell draws each nav row's icon from its own list of section ids and falls back to the generic settings gear for every other id. Hosts from DSH 0.2.2 on also declare the optional `settings.section.icon` slot — a root-scoped list addressed by the matching section id, whose registrant supplies the glyph the shell draws in place of its own and whose label is not displayed — so the plugin registers a bar-chart mark there under its own `usage` id, matching the page's chart. The mark draws in `currentColor` and keeps the px box the shell passes as `size`, so it follows the row in either theme and in the active state; the shell keeps its default glyph whenever no icon is registered for a section id. Earlier shells that do not declare the slot simply keep the gear.
 
 ### The plugin icon
 

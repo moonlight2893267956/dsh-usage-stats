@@ -6,7 +6,7 @@ English | [中文](2026-08-20-usage-settings-nav-chart-glyph.zh.md)
 
 > Partly superseded: the harness-side `navIcon` mapping described here never
 > reached a shipped shell, and the plugin now claims its own nav row instead.
-> See [Usage Settings Nav Glyph Claim](2026-10-15-usage-nav-glyph-claim.md).
+> See [Usage Settings Nav Glyph Claim](2026-10-15-usage-nav-glyph-claim.md), itself superseded by [the icon slot](2026-11-19-usage-nav-icon-slot.md).
 > The reasoning below — why the gear was wrong, and why a bar-chart mark is the
 > right one — still stands.
 

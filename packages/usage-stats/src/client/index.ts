@@ -17,7 +17,7 @@ import { UsageStatsStore } from './store.ts'
 import { fetchUsageStats } from './stats.ts'
 import { UsageSection } from './UsageSection.tsx'
 import type { UsageSectionInjected } from './UsageSection.tsx'
-import { installSettingsNavIcon } from './nav-icon.ts'
+import { UsageNavIcon } from './NavIcon.tsx'
 import { en, zh } from './locales.ts'
 
 export type { UsageSectionInjected, UsageSectionProps } from './UsageSection.tsx'
@@ -51,12 +51,16 @@ export function apply(ctx: ClientContext): void {
     t,
   })
 
-  // The nav row's glyph. The shell picks nav icons from its own section ids and
-  // falls back to the gear, and a settings.section registration has no icon to
-  // pass — so the plugin claims its own row and swaps the gear for a bar-chart
-  // mark. Same label thunk as the registration below, so a locale switch
-  // re-claims the row.
-  installSettingsNavIcon(ctx, () => t('nav'))
+  // The nav row's glyph. The shell draws a built-in icon per section id and
+  // falls back to the settings gear for ids it does not know, so the plugin
+  // contributes its own mark through the `settings.section.icon` slot: the
+  // entry's id must equal this section's id, and the shell keeps its own glyph
+  // whenever no icon is registered for that id.
+  ctx.slots.inject('settings.section.icon', () => ctx.slots.register({
+    name: 'settings.section.icon',
+    id: 'usage',
+    locale: NS,
+  }, UsageNavIcon))
 
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',

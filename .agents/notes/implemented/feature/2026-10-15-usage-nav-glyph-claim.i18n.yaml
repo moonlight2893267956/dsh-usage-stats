@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-10-15-usage-nav-glyph-claim.md
-2026-10-15-usage-nav-glyph-claim.md: 0b823d242f237d3e9612df7190e14eaddee6912d
-2026-10-15-usage-nav-glyph-claim.zh.md: 490a2ee5e4abc4a9430b58afc8982410bff3b561
+2026-10-15-usage-nav-glyph-claim.md: 297aa37c17cfa4908cc82e7d6fce994d0540a1f1
+2026-10-15-usage-nav-glyph-claim.zh.md: aa91abdaca9a2f485e176635e926660c849f3995

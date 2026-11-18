@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-11-19-usage-nav-icon-slot.md
+2026-11-19-usage-nav-icon-slot.md: b4b8558cc639ccd9d66e51ea5524b48abbe41002
+2026-11-19-usage-nav-icon-slot.zh.md: 7dda14a998f8e221df95d648e834ac1ec673b9f2

@@ -1,8 +1,13 @@
 # Agent Note: 用量设置导航字形认领
 
-Status: implemented
+Status: superseded
 
 [English](2026-10-15-usage-nav-glyph-claim.md) | 中文
+
+> 已被[用量设置导航图标改用插槽](2026-11-19-usage-nav-icon-slot.zh.md)取代。
+> DSH 0.2.2 声明了 `settings.section.icon`，并把外壳齿轮渲染进一个包装 span，因此下文
+> 基于标签的行认领无法再隐藏它，该行出现了两个标记。插件现在改为在该插槽上注册字形。
+> 关于“为何齿轮不合适”以及插件图标的论证依然成立。
 
 ## 问题
 
