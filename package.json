@@ -13,5 +13,8 @@
     "typecheck": "pnpm --filter @moonlight2893267956/dsh-usage-stats run typecheck",
     "test": "pnpm --filter @moonlight2893267956/dsh-usage-stats run test"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "unrun": "^0.3.1"
+  }
 }
